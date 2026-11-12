@@ -17,7 +17,8 @@ Port by b29s.
 | `public/sw.js` | Service worker: app-shell precache, cache-first serving for `/game/*`, offline navigation |
 | `public/manifest.webmanifest`, `public/icons/` | PWA manifest + icons generated from the game's icon |
 | `src/app/page.tsx` | Portal: minimal landing → download (also prompts the PWA install) → capsule progress with the assets being cached → Play |
-| `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: title, black DOWNLOAD button with the size under it, plain icon above. While downloading the icon becomes a DVD screensaver that bounces around the screen |
+| `public/game-banner.webp` | The game's GameJolt header banner shown on the start page (served locally + cached offline) |
+| `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: header banner, title, black DOWNLOAD button with the size under it, plain icon above. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
 | `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(port by b29s)" splash on every launch |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
 | `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT settings, game settings (FPS, FPS lock, keybinds, volumes), debug options & cheats |

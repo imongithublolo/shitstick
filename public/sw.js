@@ -19,6 +19,7 @@ const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
   "/game-icon.png",
+  "/game-banner.webp",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",
@@ -158,6 +159,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/icons/") ||
     url.pathname.startsWith("/fonts/") ||
     url.pathname === "/game-icon.png" ||
+    url.pathname === "/game-banner.webp" ||
     url.pathname === "/manifest.webmanifest"
   ) {
     event.respondWith(staleWhileRevalidate(request, SHELL_CACHE));

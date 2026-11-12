@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * The first screen: as minimal as it gets — Comic Sans, black & white, just
- * the icon (no frame), the title, one black DOWNLOAD button with the size
- * under it. While downloading: the title, a capsule progress bar and the file
- * names being cached — and the icon turns into a DVD-screensaver, bouncing
- * around the screen (it eases back to the center when done).
+ * The first screen: as minimal as it gets — Comic Sans, black & white, the
+ * game's header banner, the icon (no frame), the title, one black DOWNLOAD
+ * button with the size under it. While downloading: the banner fades away,
+ * leaving the title, a capsule progress bar and the file names being cached —
+ * and the icon turns into a DVD-screensaver, bouncing around the screen (it
+ * eases back to its slot when done).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatBytes, type DownloadProgress } from "@/lib/pwa";
 
 type Props = {
@@ -20,11 +21,18 @@ type Props = {
 };
 
 /**
- * The game icon. Sits above the title normally; while downloading it becomes
- * a DVD screensaver that bounces around the viewport. Position is animated
- * continuously via rAF so the center <-> bounce switch is perfectly smooth.
+ * The game icon. Rests in an invisible slot right under the banner; while
+ * downloading it becomes a DVD screensaver that bounces around the viewport.
+ * Position is animated continuously via rAF so the slot <-> bounce switch is
+ * perfectly smooth.
  */
-function DvdIcon({ bouncing }: { bouncing: boolean }) {
+function DvdIcon({
+  bouncing,
+  slotRef,
+}: {
+  bouncing: boolean;
+  slotRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const elRef = useRef<HTMLDivElement>(null);
   const pos = useRef({ x: -1, y: -1 });
   const vel = useRef({ x: 0.17, y: 0.13 }); // px per ms
@@ -35,13 +43,22 @@ function DvdIcon({ bouncing }: { bouncing: boolean }) {
     if (!el) return;
 
     const size = () => el.getBoundingClientRect().width || 96;
-    const center = () => ({
-      x: (window.innerWidth - size()) / 2,
-      y: window.innerHeight * 0.26 - size() / 2,
-    });
+    // where the icon belongs: inside its slot under the banner
+    const rest = () => {
+      const slot = slotRef.current;
+      if (slot) {
+        const r = slot.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      }
+      return {
+        x: (window.innerWidth - size()) / 2,
+        y: window.innerHeight * 0.26 - size() / 2,
+      };
+    };
 
     if (!mounted.current) {
-      pos.current = center();
+      const r = rest();
+      pos.current = { x: r.x, y: r.y };
       mounted.current = true;
     }
 
@@ -82,8 +99,8 @@ function DvdIcon({ bouncing }: { bouncing: boolean }) {
         pos.current = { x, y };
         vel.current = { x: vx, y: vy };
       } else {
-        // glide back to the resting spot above the title
-        const t = center();
+        // glide back to the resting slot under the banner
+        const t = rest();
         const p = pos.current;
         const k = Math.min(1, dt / 260);
         pos.current = { x: p.x + (t.x - p.x) * k, y: p.y + (t.y - p.y) * k };
@@ -95,7 +112,7 @@ function DvdIcon({ bouncing }: { bouncing: boolean }) {
     apply();
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [bouncing]);
+  }, [bouncing, slotRef]);
 
   return (
     <div
@@ -120,6 +137,19 @@ export function DownloadScreen({ phase, progress, totalBytes, onDownload, onPlay
       : 0;
   const failed = progress?.phase === "error";
 
+  // the banner only belongs to the start page — it fades out for the download
+  const bannerVisible = phase !== "downloading";
+
+  // fade the banner in once the bitmap is actually there (no empty-box flash)
+  const bannerRef = useRef<HTMLImageElement>(null);
+  const [bannerLoaded, setBannerLoaded] = useState(false);
+  useEffect(() => {
+    if (bannerRef.current?.complete) setBannerLoaded(true);
+  }, []);
+
+  // the icon's resting slot (sits right under the banner, above the title)
+  const iconSlotRef = useRef<HTMLDivElement>(null);
+
   const show = (active: boolean) =>
     `absolute inset-x-0 flex flex-col items-center transition-[opacity,visibility] duration-500 ${
       active ? "opacity-100" : "opacity-0 invisible pointer-events-none"
@@ -127,15 +157,28 @@ export function DownloadScreen({ phase, progress, totalBytes, onDownload, onPlay
 
   return (
     <div className="crt-bg fixed inset-0 select-none bg-black text-white font-comic overflow-hidden">
-      <DvdIcon bouncing={phase === "downloading"} />
+      <DvdIcon bouncing={phase === "downloading"} slotRef={iconSlotRef} />
 
-      {/* the title — never moves, so switching phases is seamless */}
-      <h1 className="absolute left-1/2 -translate-x-1/2 top-[40%] -translate-y-1/2 z-10 whitespace-nowrap text-3xl sm:text-4xl text-white">
-        ShitStickAdventure
-      </h1>
+      {/* banner + icon slot + title — always mounted so nothing ever shifts */}
+      <div className="absolute inset-x-0 top-[9%] z-10 flex flex-col items-center gap-4 px-4">
+        <img
+          ref={bannerRef}
+          src="/game-banner.webp"
+          alt="ShitStickAdventure"
+          draggable={false}
+          onLoad={() => setBannerLoaded(true)}
+          className={`w-[min(86vw,560px)] [@media(max-height:640px)]:w-[min(70vw,340px)] aspect-[4/1] select-none rounded-lg object-cover transition-opacity duration-700 ${
+            bannerLoaded && bannerVisible ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <div ref={iconSlotRef} className="w-24 h-24 sm:w-28 sm:h-28" aria-hidden />
+        <h1 className="whitespace-nowrap text-3xl sm:text-4xl text-white">
+          ShitStickAdventure
+        </h1>
+      </div>
 
       {/* idle: the black download button with the size under it */}
-      <div className={`${show(phase === "idle")} top-[52%] z-10 gap-4`}>
+      <div className={`${show(phase === "idle")} top-[54%] z-10 gap-4`}>
         <button
           type="button"
           onClick={onDownload}
@@ -147,7 +190,7 @@ export function DownloadScreen({ phase, progress, totalBytes, onDownload, onPlay
       </div>
 
       {/* downloading: just the progress + what it's caching */}
-      <div className={`${show(phase === "downloading")} top-[50%] z-10 px-8`}>
+      <div className={`${show(phase === "downloading")} top-[55%] z-10 px-8`}>
         <div className="w-full max-w-xs sm:max-w-sm">
           <div className="capsule-track h-3.5 w-full overflow-hidden">
             <div className="capsule-fill h-full" style={{ width: `${pct}%` }} />
@@ -190,7 +233,7 @@ export function DownloadScreen({ phase, progress, totalBytes, onDownload, onPlay
       </div>
 
       {/* ready: play */}
-      <div className={`${show(phase === "ready")} top-[52%] z-10`}>
+      <div className={`${show(phase === "ready")} top-[54%] z-10`}>
         <button
           type="button"
           onClick={onPlay}
