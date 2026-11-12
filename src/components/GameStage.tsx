@@ -167,9 +167,14 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
             transition={{ duration: 0.8 }}
             className="absolute inset-x-0 bottom-12 z-30 flex justify-center pointer-events-none"
           >
-            <span className="font-comic text-2xl text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-              (port by b29s)
-            </span>
+            <div className="flex flex-col items-center gap-1">
+              <span className="font-comic text-2xl text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                (Made by tmx_2011)
+              </span>
+              <span className="font-comic text-2xl text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                (port by b29s)
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

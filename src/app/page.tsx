@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadScreen } from "@/components/DownloadScreen";
 import { GameStage } from "@/components/GameStage";
+import { InviteGate, isInvited } from "@/components/InviteGate";
 import {
   canInstall,
   captureInstallPrompt,
@@ -30,9 +31,13 @@ export default function Home() {
   const [totalBytes, setTotalBytes] = useState(0);
   const [cachedFiles, setCachedFiles] = useState<{ done: number; total: number } | null>(null);
   const [playNonce, setPlayNonce] = useState(0);
+  const [invited, setInvited] = useState(false);
   const downloadLock = useRef(false);
 
   useEffect(() => {
+    // invite-only: returning visitors who already entered the code skip the gate
+    if (isInvited()) setInvited(true);
+
     registerServiceWorker();
     captureInstallPrompt();
 
@@ -89,6 +94,12 @@ export default function Home() {
     setProgress(null);
     setPhase("idle");
   }, []);
+
+  // the invite gate short-circuits everything until the code is entered
+  // (kept after all hooks so hook order stays stable)
+  if (!invited) {
+    return <InviteGate onSuccess={() => setInvited(true)} />;
+  }
 
   if (phase === "playing") {
     return <GameStage key={playNonce} onExit={exitGame} onExitClearCache={exitAndClearCache} />;

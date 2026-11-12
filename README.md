@@ -18,8 +18,9 @@ Port by b29s.
 | `public/manifest.webmanifest`, `public/icons/` | PWA manifest + icons generated from the game's icon |
 | `src/app/page.tsx` | Portal: minimal landing → download (also prompts the PWA install) → capsule progress with the assets being cached → Play |
 | `public/game-banner.webp` | The game's GameJolt header banner shown on the start page (served locally + cached offline) |
-| `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: header banner, title, black DOWNLOAD button with the size under it, plain icon above. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
-| `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(port by b29s)" splash on every launch |
+| `src/components/InviteGate.tsx` | Invite-only first screen: "(Invite Code:)" above a capsule password field (Enter submits; the unlock is remembered in localStorage) |
+| `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: edge-to-edge header banner on top, the icon left of the title / black DOWNLOAD button / size. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
+| `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
 | `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT settings, game settings (FPS, FPS lock, keybinds, volumes), debug options & cheats |
 | `src/components/DebugOverlay.tsx` | Event hitboxes, collision grid, player info HUD |
@@ -45,16 +46,20 @@ Nothing else in the game was modified.
 
 ## Features
 
-- **Landing screen**: Comic Sans, strictly black & white, nothing but the
-  game icon (plain, no frame), the title, a black DOWNLOAD button and the
-  download size under it. The click also fires the browser's "install app"
-  (PWA) prompt.
-- **Download screen**: title + capsule progress bar + the file names being
-  cached. The game icon turns into a DVD screensaver, bouncing around the
-  screen for the whole download, then eases back to the center.
+- **Landing screen**: Comic Sans, strictly black & white. The game's header
+  banner runs edge-to-edge across the top; below it, centered, the game icon
+  (plain, no frame) sits on the left of the title, a black DOWNLOAD button and
+  the download size. The click also fires the browser's "install app" (PWA)
+  prompt.
+- **Download screen**: the banner fades away, leaving the title + capsule
+  progress bar + the file names being cached. The game icon turns into a DVD
+  screensaver, bouncing around the screen for the whole download, then eases
+  back to its slot beside the title.
+- **Invite-only**: the very first screen asks for the invite code (a capsule
+  password field); once entered it is remembered on that device.
 - **Offline PWA**: after the one-time ~54 MB download the whole game runs
   offline; game saves live in the browser's storage (RMMZ web mode).
-- **Launch splash**: "(port by b29s)" in Comic Sans appears over the game on
+- **Launch splash**: "(Made by tmx_2011)" above "(port by b29s)" in Comic Sans appears over the game on
   every launch, then fades away.
 - **CRT shader**: full gingerbeardman parameter set — enable toggle, pixel
   smoothing, scanline intensity/count/adaptive, brightness/contrast/saturation,
