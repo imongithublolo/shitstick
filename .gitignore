@@ -52,3 +52,17 @@ prompt
 server.log
 # Skills directory
 /skills/
+# sandbox scaffolding (not part of the app)
+/.zscripts/
+/db/
+/prisma/
+/examples/
+/mini-services/
+/tests/
+/scripts/
+/download/
+/tool-results/
+/upload/
+/Caddyfile
+dev.out.log
+dev.pid

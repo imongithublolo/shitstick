@@ -77,17 +77,36 @@ export function setMoveSpeed(iframe: HTMLIFrameElement | null, level: number): C
   }
 }
 
+/** Disables random encounters bulletproof-ly: besides the engine's own
+ *  $gameSystem flag, Game_Player.canEncounter is patched out so step-
+ *  encounters can never trigger (survives save/load, works with pixel
+ *  movement plugins). */
 export function setEncounters(iframe: HTMLIFrameElement | null, enabled: boolean): CheatResult {
   const w = gameWindow(iframe);
-  const guard = requireActive(w);
-  if (guard) return guard;
-  try {
-    if (enabled) w.$gameSystem.enableEncounter();
-    else w.$gameSystem.disableEncounter();
-    return ok(enabled ? "Encounters on" : "Encounters off");
-  } catch (e) {
-    return fail(String(e));
+  if (!w || !w.Game_Player) return fail("Game engine not loaded yet");
+  const P = w.Game_Player.prototype;
+  if (!enabled) {
+    if (!P.__ssaOrigCanEncounter) P.__ssaOrigCanEncounter = P.canEncounter;
+    P.canEncounter = function () {
+      return false;
+    };
+    try {
+      w.$gameSystem?.disableEncounter?.();
+    } catch {
+      /* not in a game yet */
+    }
+    return ok("Random encounters off");
   }
+  if (P.__ssaOrigCanEncounter) {
+    P.canEncounter = P.__ssaOrigCanEncounter;
+    delete P.__ssaOrigCanEncounter;
+  }
+  try {
+    w.$gameSystem?.enableEncounter?.();
+  } catch {
+    /* not in a game yet */
+  }
+  return ok("Random encounters on");
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +132,19 @@ export function enemiesHpToOne(iframe: HTMLIFrameElement | null): CheatResult {
   try {
     w.$gameTroop.members().forEach((e: any) => e.setHp(1));
     return ok("Enemies set to 1 HP");
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Instantly wins the current battle. */
+export function killAllEnemies(iframe: HTMLIFrameElement | null): CheatResult {
+  const w = gameWindow(iframe);
+  if (!w) return fail("Game engine not loaded yet");
+  if (!w.$gameTroop) return fail("Not in battle");
+  try {
+    w.$gameTroop.members().forEach((e: any) => e.die());
+    return ok("All enemies defeated");
   } catch (e) {
     return fail(String(e));
   }
@@ -144,6 +176,118 @@ export function giveThing(iframe: HTMLIFrameElement | null, kind: GiveKind, id: 
     if (!entry) return fail(`Unknown ${kind} #${id}`);
     w.$gameParty.gainItem(entry, Math.max(1, Math.min(99, n)), true);
     return ok(`Gained ${entry.name} x${n}`);
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Gives the party every item / weapon / armor in the game. */
+export function giveAll(iframe: HTMLIFrameElement | null, kind: GiveKind): CheatResult {
+  const w = gameWindow(iframe);
+  const guard = requireActive(w);
+  if (guard) return guard;
+  try {
+    const db = kind === "item" ? w.$dataItems : kind === "weapon" ? w.$dataWeapons : w.$dataArmors;
+    if (!db) return fail("Game data not loaded yet");
+    let n = 0;
+    db.forEach((entry: any, i: number) => {
+      if (i > 0 && entry && typeof entry.name === "string" && entry.name.trim() && !entry.name.startsWith("-----")) {
+        w.$gameParty.gainItem(entry, 99, true);
+        n += 1;
+      }
+    });
+    return ok(`Gained every ${kind} (${n})`);
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Every party member learns every skill in the game, and the Magic +
+ *  Special command tabs are force-unlocked (adds skill-type traits to the
+ *  actor data so the menu really shows the magic). */
+export function learnAllSkills(iframe: HTMLIFrameElement | null): CheatResult {
+  const w = gameWindow(iframe);
+  const guard = requireActive(w);
+  if (guard) return guard;
+  try {
+    const TRAIT_STYPE_ADD = 41; // Game_BattlerBase.TRAIT_STYPE_ADD
+    const members = w.$gameParty.members();
+    let learned = 0;
+    members.forEach((m: any) => {
+      // make sure the Magic (1) and Special (2) tabs exist for this actor
+      const data = w.$dataActors?.[m.actorId()];
+      if (data) {
+        if (!Array.isArray(data.traits)) data.traits = [];
+        [1, 2].forEach((st) => {
+          if (!data.traits.some((t: any) => t.code === TRAIT_STYPE_ADD && t.dataId === st)) {
+            data.traits.push({ code: TRAIT_STYPE_ADD, dataId: st });
+          }
+        });
+      }
+      w.$dataSkills?.forEach((s: any, i: number) => {
+        if (
+          i > 0 &&
+          s &&
+          typeof s.name === "string" &&
+          s.name.trim() &&
+          !s.name.startsWith("-----") &&
+          !m.isLearnedSkill(i)
+        ) {
+          m.learnSkill(i);
+          learned += 1;
+        }
+      });
+      m.refresh?.();
+    });
+    return ok(`Party learned ${learned} new skill${learned === 1 ? "" : "s"} (Magic + Special unlocked)`);
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Levels the whole party to max level. */
+export function maxLevelAll(iframe: HTMLIFrameElement | null): CheatResult {
+  const w = gameWindow(iframe);
+  const guard = requireActive(w);
+  if (guard) return guard;
+  try {
+    w.$gameParty.members().forEach((m: any) => {
+      const max = typeof m.maxLevel === "function" ? m.maxLevel() : 99;
+      m.changeExp(m.expForLevel(max), true);
+    });
+    return ok("Party is now max level");
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Adds any actor (playable or NPC) to the party. */
+export function addActorToParty(iframe: HTMLIFrameElement | null, actorId: number): CheatResult {
+  const w = gameWindow(iframe);
+  const guard = requireActive(w);
+  if (guard) return guard;
+  try {
+    const data = w.$dataActors?.[actorId];
+    if (!data) return fail(`Unknown actor #${actorId}`);
+    if (w.$gameParty._actors.includes(actorId)) return ok(`${data.name} is already in the party`);
+    w.$gameParty.addActor(actorId);
+    return ok(`${data.name} joined the party`);
+  } catch (e) {
+    return fail(String(e));
+  }
+}
+
+/** Removes an actor from the party (never the last one). */
+export function removeActorFromParty(iframe: HTMLIFrameElement | null, actorId: number): CheatResult {
+  const w = gameWindow(iframe);
+  const guard = requireActive(w);
+  if (guard) return guard;
+  try {
+    const data = w.$dataActors?.[actorId];
+    if (!w.$gameParty._actors.includes(actorId)) return fail("Not in the party");
+    if (w.$gameParty.size() <= 1) return fail("Can't remove the last member");
+    w.$gameParty.removeActor(actorId);
+    return ok(`${data?.name ?? `Actor #${actorId}`} left the party`);
   } catch (e) {
     return fail(String(e));
   }

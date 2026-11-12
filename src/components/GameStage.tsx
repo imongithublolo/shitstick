@@ -5,7 +5,7 @@
  * overlay + FPS HUD + the floating settings (gear) and exit buttons.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { LogOut, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CrtLayer } from "@/components/CrtLayer";
@@ -37,9 +37,16 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   const [active, setActive] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [fps, setFps] = useState(0);
+  const [showPortBy, setShowPortBy] = useState(true);
   const game = useSettings((s) => s.game);
   const debug = useSettings((s) => s.debug);
   const { toast } = useToast();
+
+  // "(port by b29s)" — shows on every game launch, then fades away
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowPortBy(false), 5000);
+    return () => window.clearTimeout(t);
+  }, []);
 
   // live engine state poll (drives availability of cheats and HUD data)
   useEffect(() => {
@@ -145,10 +152,27 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
       <DebugOverlay iframeRef={iframeRef} />
 
       {game.showFps && (
-        <div className="absolute top-2 left-2 z-30 px-2 py-1 rounded-md bg-black/70 border border-white/10 text-xs font-mono text-emerald-300 tabular-nums pointer-events-none">
+        <div className="absolute top-2 left-2 z-30 px-2 py-1 rounded-md bg-black/70 border border-white/10 text-xs font-mono text-white tabular-nums pointer-events-none">
           {fps} FPS
         </div>
       )}
+
+      <AnimatePresence>
+        {showPortBy && (
+          <motion.div
+            key="port-by"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            className="absolute inset-x-0 bottom-12 z-30 flex justify-center pointer-events-none"
+          >
+            <span className="font-comic text-2xl text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+              (port by b29s)
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="absolute top-2 right-2 z-40 flex items-center gap-2">
         <button
@@ -159,7 +183,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
             e.stopPropagation();
             setPanelOpen((v) => !v);
           }}
-          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-emerald-300/50 hover:bg-black/80 text-white/80 hover:text-emerald-300 flex items-center justify-center transition-colors"
+          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-white hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors"
         >
           <Settings className="w-5 h-5" />
         </button>
@@ -171,7 +195,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
             e.stopPropagation();
             onExit();
           }}
-          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-red-400/50 hover:bg-black/80 text-white/80 hover:text-red-300 flex items-center justify-center transition-colors"
+          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-white/60 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors"
         >
           <LogOut className="w-5 h-5" />
         </button>

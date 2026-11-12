@@ -81,23 +81,12 @@ export default function Home() {
 
   const exitGame = useCallback(() => {
     setPhase("ready");
-    // refresh cache status after returning
-    void (async () => {
-      const status = await isGameCached();
-      setCachedFiles({ done: status.filesDone, total: status.filesTotal });
-    })();
   }, []);
 
   const exitAndClearCache = useCallback(async () => {
     await clearGameCache();
     setCachedFiles(null);
     setProgress(null);
-    setPhase("idle");
-  }, []);
-
-  const redownload = useCallback(async () => {
-    await clearGameCache();
-    setCachedFiles(null);
     setPhase("idle");
   }, []);
 
@@ -114,7 +103,6 @@ export default function Home() {
         cachedFiles={cachedFiles}
         onDownload={startDownload}
         onPlay={play}
-        onRedownload={redownload}
       />
     </main>
   );

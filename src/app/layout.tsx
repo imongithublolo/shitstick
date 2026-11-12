@@ -41,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-black text-neutral-100 font-ssa overflow-hidden">
+      <body className="antialiased bg-black text-neutral-100 font-comic overflow-hidden">
         {children}
         <Toaster />
       </body>

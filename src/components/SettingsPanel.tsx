@@ -8,31 +8,11 @@
  *    upstream CRTTweakPanel controls)
  *  - GAME: FPS counter, FPS lock, keybind remapping, audio volumes
  *  - DEBUG: cheats discovered in the game (built-in Ctrl noclip, RMMZ debug
- *    globals, the game's own switches/variables/items/maps)
+ *    globals, the game's own switches/variables/items/maps/skills/actors)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Ban,
-  Crosshair,
-  Download,
-  FastForward,
-  Gauge,
-  Gamepad2,
-  HeartPulse,
-  KeyRound,
-  MapPin,
-  Monitor,
-  Package,
-  RotateCcw,
-  Save,
-  Search,
-  Sliders,
-  Sparkles,
-  Trash2,
-  Volume2,
-  X,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -54,8 +34,6 @@ import {
 } from "@/lib/gameBridge";
 import * as cheats from "@/lib/cheats";
 
- 
-
 type Props = {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   open: boolean;
@@ -64,12 +42,12 @@ type Props = {
 };
 
 // ---------------------------------------------------------------------------
-// small shared bits
+// small shared bits (black & white, no icons, no subtext)
 // ---------------------------------------------------------------------------
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-5 mb-2 text-[11px] font-bold tracking-[0.18em] text-emerald-300/70">
+    <div className="mt-5 mb-2 text-xs font-bold tracking-[0.14em] text-white/60">
       {children}
     </div>
   );
@@ -77,21 +55,22 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function ToggleRow({
   label,
-  hint,
   checked,
   onChange,
 }: {
   label: string;
-  hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <div className="min-w-0">
-        <div className="text-sm">{label}</div>
-        {hint && <div className="text-[11px] text-white/40">{hint}</div>}
-      </div>
+      <button
+        type="button"
+        className="flex-1 text-left text-sm text-white"
+        onClick={() => onChange(!checked)}
+      >
+        {label}
+      </button>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
   );
@@ -116,9 +95,9 @@ function SliderRow({
 }) {
   return (
     <div className="py-1.5">
-      <div className="flex items-center justify-between text-sm mb-1">
+      <div className="mb-1 flex items-center justify-between text-sm text-white">
         <span>{label}</span>
-        <span className="text-emerald-300/90 text-xs tabular-nums">
+        <span className="text-xs tabular-nums text-white/70">
           {format ? format(value) : value}
         </span>
       </div>
@@ -132,6 +111,10 @@ function SliderRow({
     </div>
   );
 }
+
+/** Selected / unselected button styles (black & white only) */
+const selBtn = "bg-white text-black hover:bg-neutral-200";
+const outBtn = "border-white/25 bg-white/5 text-white hover:bg-white/10";
 
 /** Renders an RMMZ icon from the game's own IconSet.png */
 function IconImg({ index, size = 22 }: { index: number; size?: number }) {
@@ -214,13 +197,11 @@ function CrtTab() {
     <div>
       <ToggleRow
         label="CRT Filter"
-        hint="WebGL shader over the game output"
         checked={crt.enabled}
         onChange={(v) => setCrt({ enabled: v })}
       />
       <ToggleRow
         label="Pixel Smoothing"
-        hint="Bilinear texture filtering (off = crunchy pixels)"
         checked={crt.smoothing}
         onChange={(v) => setCrt({ smoothing: v })}
       />
@@ -228,13 +209,7 @@ function CrtTab() {
       <SectionTitle>Presets</SectionTitle>
       <div className="grid grid-cols-3 gap-2">
         {["Subtle", "Retro", "Strong"].map((name) => (
-          <Button
-            key={name}
-            size="sm"
-            variant="outline"
-            className="border-white/15 bg-white/5 hover:bg-white/10"
-            onClick={() => applyPreset(name)}
-          >
+          <Button key={name} size="sm" variant="outline" className={outBtn} onClick={() => applyPreset(name)}>
             {name}
           </Button>
         ))}
@@ -259,8 +234,8 @@ function CrtTab() {
       ))}
 
       <div className="mt-4">
-        <Button size="sm" variant="outline" onClick={resetCrt} className="w-full border-white/15 bg-white/5">
-          <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset CRT to defaults
+        <Button size="sm" variant="outline" onClick={resetCrt} className={`w-full ${outBtn}`}>
+          Reset CRT to defaults
         </Button>
       </div>
     </div>
@@ -313,19 +288,14 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
 
   return (
     <div>
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Gauge className="w-3.5 h-3.5" /> Performance
-        </span>
-      </SectionTitle>
+      <SectionTitle>Performance</SectionTitle>
       <ToggleRow
         label="Show FPS"
-        hint="Counter in the top-left corner"
         checked={game.showFps}
         onChange={(v) => setGame({ showFps: v })}
       />
       <div className="py-2">
-        <div className="text-sm mb-2">FPS Limit</div>
+        <div className="mb-2 text-sm text-white">FPS Limit</div>
         <div className="grid grid-cols-6 gap-1.5">
           {FPS_OPTIONS.map((opt) => (
             <Button
@@ -333,9 +303,7 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
               size="sm"
               variant={game.fpsLock === opt.value ? "default" : "outline"}
               className={
-                game.fpsLock === opt.value
-                  ? "bg-emerald-500 text-black hover:bg-emerald-400"
-                  : "border-white/15 bg-white/5 hover:bg-white/10 px-0"
+                game.fpsLock === opt.value ? selBtn : `${outBtn} px-0`
               }
               onClick={() => setGame({ fpsLock: opt.value })}
             >
@@ -343,16 +311,9 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
             </Button>
           ))}
         </div>
-        <div className="text-[11px] text-white/40 mt-1.5">
-          Locks the game loop by throttling requestAnimationFrame.
-        </div>
       </div>
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Volume2 className="w-3.5 h-3.5" /> Audio
-        </span>
-      </SectionTitle>
+      <SectionTitle>Audio</SectionTitle>
       {(
         [
           ["bgm", "Music (BGM)"],
@@ -373,21 +334,17 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
         />
       ))}
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <KeyRound className="w-3.5 h-3.5" /> Keybinds
-        </span>
-      </SectionTitle>
+      <SectionTitle>Keybinds</SectionTitle>
       {capturing && (
-        <div className="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-xs mb-2">
+        <div className="mb-2 rounded-md border border-white/30 bg-white/10 px-3 py-2 text-xs text-white">
           Press a key to bind <b>{KEYBIND_ACTION_LABELS[capturing]}</b> · Esc cancels
         </div>
       )}
       <div className="space-y-1">
         {(Object.keys(KEYBIND_ACTION_LABELS) as KeybindAction[]).map((action) => (
           <div key={action} className="flex items-center justify-between gap-2 py-1">
-            <div className="text-sm w-28 shrink-0">{KEYBIND_ACTION_LABELS[action]}</div>
-            <div className="flex items-center gap-1 min-w-0 flex-wrap justify-end">
+            <div className="w-28 shrink-0 text-sm text-white">{KEYBIND_ACTION_LABELS[action]}</div>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
               {(game.keybinds[action] || []).length === 0 && (
                 <span className="text-[11px] text-white/30">gamepad only</span>
               )}
@@ -400,14 +357,10 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
             <Button
               size="sm"
               variant={capturing === action ? "default" : "outline"}
-              className={
-                capturing === action
-                  ? "bg-emerald-500 text-black hover:bg-emerald-400 h-7 px-2.5"
-                  : "border-white/15 bg-white/5 hover:bg-white/10 h-7 px-2.5"
-              }
+              className={capturing === action ? selBtn : `${outBtn} h-7 px-2.5`}
               onClick={() => setCapturing(capturing === action ? null : action)}
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
+              {capturing === action ? "…" : "Bind"}
             </Button>
           </div>
         ))}
@@ -416,17 +369,16 @@ function GameTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement |
         <Button
           size="sm"
           variant="outline"
-          className="w-full border-white/15 bg-white/5"
+          className={`w-full ${outBtn}`}
           onClick={() => {
             resetKeybinds();
-            applyKeybinds(iframeRef.current, JSON.parse(JSON.stringify(useSettings.getState().game.keybinds)));
             setTimeout(() => {
               const s = useSettings.getState();
               applyKeybinds(iframeRef.current, s.game.keybinds);
             }, 0);
           }}
         >
-          <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset keybinds
+          Reset keybinds
         </Button>
       </div>
     </div>
@@ -443,14 +395,20 @@ type GameData = {
   items: DataEntry[];
   weapons: DataEntry[];
   armors: DataEntry[];
+  actors: { id: number; name: string }[];
   switches: { id: number; name: string }[];
   variables: { id: number; name: string }[];
   maps: { id: number; name: string }[];
 };
 
-type LiveValues = { sw: Record<number, boolean>; vr: Record<number, number>; gold: number };
+type LiveValues = {
+  sw: Record<number, boolean>;
+  vr: Record<number, number>;
+  gold: number;
+  party: number[];
+};
 
-const EMPTY_LIVE: LiveValues = { sw: {}, vr: {}, gold: 0 };
+const EMPTY_LIVE: LiveValues = { sw: {}, vr: {}, gold: 0, party: [] };
 
 function collectGameData(w: any): GameData {
   const switches: { id: number; name: string }[] = [];
@@ -465,10 +423,17 @@ function collectGameData(w: any): GameData {
   (w.$dataMapInfos || []).forEach((m: any, i: number) => {
     if (i > 0 && m && m.name && m.name.trim()) maps.push({ id: i, name: m.name });
   });
+  const actors: { id: number; name: string }[] = [];
+  (w.$dataActors || []).forEach((a: any, i: number) => {
+    if (i > 0 && a && typeof a.name === "string" && a.name.trim() && !a.name.startsWith("-----")) {
+      actors.push({ id: i, name: a.name });
+    }
+  });
   return {
     items: collectEntries(w.$dataItems),
     weapons: collectEntries(w.$dataWeapons),
     armors: collectEntries(w.$dataArmors),
+    actors,
     switches,
     variables,
     maps,
@@ -476,7 +441,7 @@ function collectGameData(w: any): GameData {
 }
 
 function snapshotLive(w: any, data: GameData | null): LiveValues {
-  const out: LiveValues = { sw: {}, vr: {}, gold: 0 };
+  const out: LiveValues = { sw: {}, vr: {}, gold: 0, party: [] };
   if (!w) return out;
   try {
     data?.switches.forEach((s) => {
@@ -486,6 +451,7 @@ function snapshotLive(w: any, data: GameData | null): LiveValues {
       out.vr[v.id] = Number(w.$gameVariables?.value(v.id) ?? 0);
     });
     out.gold = Number(w.$gameParty?.gold?.() ?? 0);
+    out.party = Array.isArray(w.$gameParty?._actors) ? [...w.$gameParty._actors] : [];
   } catch {
     /* not in game */
   }
@@ -573,22 +539,14 @@ function DebugTab({
 
   const switchValue = (id: number): boolean => !!live.sw[id];
   const variableValue = (id: number): number => live.vr[id] ?? 0;
+  const actorName = (id: number): string =>
+    gameData?.actors.find((a) => a.id === id)?.name ?? `#${id}`;
 
   return (
     <div>
-      <div className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
-        Cheats and debug tools found in the game engine. They can break events
-        and saves — use for fun or testing.
-      </div>
-
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5" /> Cheat Toggles
-        </span>
-      </SectionTitle>
+      <SectionTitle>Cheat Toggles</SectionTitle>
       <ToggleRow
         label="Noclip"
-        hint="Walk through walls (game's Ctrl cheat, always on)"
         checked={debug.noclip}
         onChange={(v) => {
           setDebug({ noclip: v });
@@ -597,13 +555,11 @@ function DebugTab({
       />
       <ToggleRow
         label="God Mode"
-        hint="Party constantly healed"
         checked={debug.godMode}
         onChange={(v) => setDebug({ godMode: v })}
       />
       <ToggleRow
-        label="No Encounters"
-        hint="Disables random battles"
+        label="No Random Encounters"
         checked={debug.encounterOff}
         onChange={(v) => {
           setDebug({ encounterOff: v });
@@ -611,14 +567,9 @@ function DebugTab({
         }}
       />
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <FastForward className="w-3.5 h-3.5" /> Speed
-        </span>
-      </SectionTitle>
+      <SectionTitle>Speed</SectionTitle>
       <SliderRow
         label="Movement Speed"
-        hint=""
         value={debug.moveSpeed === 0 ? 4 : debug.moveSpeed}
         min={1}
         max={6}
@@ -630,18 +581,14 @@ function DebugTab({
         }}
       />
       <div className="py-1.5">
-        <div className="text-sm mb-2">Turbo Multiplier</div>
+        <div className="mb-2 text-sm text-white">Turbo Multiplier</div>
         <div className="grid grid-cols-4 gap-1.5">
           {[1, 2, 3, 4].map((m) => (
             <Button
               key={m}
               size="sm"
               variant={debug.speedMult === m ? "default" : "outline"}
-              className={
-                debug.speedMult === m
-                  ? "bg-emerald-500 text-black hover:bg-emerald-400"
-                  : "border-white/15 bg-white/5 hover:bg-white/10"
-              }
+              className={debug.speedMult === m ? selBtn : outBtn}
               onClick={() => {
                 setDebug({ speedMult: m });
                 act(() => cheats.setSpeedMult(iframeRef.current, m));
@@ -653,89 +600,95 @@ function DebugTab({
         </div>
       </div>
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Crosshair className="w-3.5 h-3.5" /> Debug Overlays
-        </span>
-      </SectionTitle>
+      <SectionTitle>Debug Overlays</SectionTitle>
       <ToggleRow
         label="Event Boxes"
-        hint="Named events + player hitboxes"
         checked={debug.showEvents}
         onChange={(v) => setDebug({ showEvents: v })}
       />
       <ToggleRow
         label="Collision Grid"
-        hint="Green = walkable tile"
         checked={debug.showCollision}
         onChange={(v) => setDebug({ showCollision: v })}
       />
       <ToggleRow
         label="Player Info HUD"
-        hint="Map, coords, region, gold, FPS"
         checked={debug.showPlayerInfo}
         onChange={(v) => setDebug({ showPlayerInfo: v })}
       />
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Save className="w-3.5 h-3.5" /> Quick Actions
-        </span>
-      </SectionTitle>
+      <SectionTitle>Quick Actions</SectionTitle>
       <div className="grid grid-cols-3 gap-1.5">
-        <Button size="sm" variant="outline" className="border-white/15 bg-white/5 hover:bg-white/10" onClick={() => act(() => cheats.quickNewGame(iframeRef.current))}>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.quickNewGame(iframeRef.current))}>
           New Game
         </Button>
-        <Button size="sm" variant="outline" className="border-white/15 bg-white/5 hover:bg-white/10" onClick={() => act(() => cheats.quickContinue(iframeRef.current))}>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.quickContinue(iframeRef.current))}>
           Continue
         </Button>
-        <Button size="sm" variant="outline" className="border-white/15 bg-white/5 hover:bg-white/10" onClick={() => act(() => cheats.quickSave(iframeRef.current))}>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.quickSave(iframeRef.current))}>
           Save
         </Button>
-        <Button size="sm" variant="outline" className="border-white/15 bg-white/5 hover:bg-white/10" onClick={() => act(() => cheats.healParty(iframeRef.current))}>
-          <HeartPulse className="w-3.5 h-3.5 mr-1" /> Heal
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.healParty(iframeRef.current))}>
+          Heal
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.enemiesHpToOne(iframeRef.current))}>
+          Foes 1 HP
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.killAllEnemies(iframeRef.current))}>
+          Win Battle
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.learnAllSkills(iframeRef.current))}>
+          All Skills
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.maxLevelAll(iframeRef.current))}>
+          Max Level
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="border-white/15 bg-white/5 hover:bg-white/10"
-          onClick={() => act(() => cheats.enemiesHpToOne(iframeRef.current))}
-        >
-          <Ban className="w-3.5 h-3.5 mr-1" /> Foes 1HP
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-white/15 bg-white/5 hover:bg-white/10"
+          className={outBtn}
           onClick={() => iframeRef.current?.contentWindow?.location.reload()}
         >
           Reload
         </Button>
       </div>
 
-      <SectionTitle>Gold ({active ? `${live.gold} G` : "in-game only"})</SectionTitle>
+      <SectionTitle>Give Everything</SectionTitle>
+      <div className="grid grid-cols-3 gap-1.5">
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.giveAll(iframeRef.current, "item"))}>
+          All Items
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.giveAll(iframeRef.current, "weapon"))}>
+          All Weapons
+        </Button>
+        <Button size="sm" variant="outline" className={outBtn} onClick={() => act(() => cheats.giveAll(iframeRef.current, "armor"))}>
+          All Armors
+        </Button>
+      </div>
+
+      <SectionTitle>Gold {active ? `· ${live.gold.toLocaleString()} G` : ""}</SectionTitle>
       <div className="flex gap-1.5">
         <Input
           value={goldAmount}
           onChange={(e) => setGoldAmount(e.target.value.replace(/[^0-9]/g, ""))}
           inputMode="numeric"
-          className="h-8 bg-white/5 border-white/15 flex-1"
+          className="h-8 flex-1 border-white/20 bg-white/5 text-white"
         />
         <Button
           size="sm"
-          className="bg-emerald-500 text-black hover:bg-emerald-400 h-8"
+          className={`h-8 ${selBtn}`}
           onClick={() => act(() => cheats.addGold(iframeRef.current, Number(goldAmount) || 0))}
         >
           Give
         </Button>
       </div>
-      <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+      <div className="mt-1.5 grid grid-cols-4 gap-1.5">
         {[100, 1000, 10000, 9999999].map((g) => (
           <Button
             key={g}
             size="sm"
             variant="outline"
-            className="border-white/15 bg-white/5 hover:bg-white/10 px-0"
+            className={`${outBtn} px-0`}
             onClick={() => act(() => cheats.addGold(iframeRef.current, g))}
           >
             +{g >= 1000000 ? "9.9M" : g.toLocaleString()}
@@ -747,22 +700,55 @@ function DebugTab({
         <div className="mt-4 text-xs text-white/40">Loading game data… (start the game once)</div>
       ) : (
         <>
-          <SectionTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5" /> Inventory
-            </span>
-          </SectionTitle>
-          <div className="grid grid-cols-3 gap-1.5 mb-2">
+          <SectionTitle>Party</SectionTitle>
+          {active ? (
+            <div className="mb-2 space-y-1">
+              {live.party.length === 0 && (
+                <div className="text-xs text-white/40">No party yet</div>
+              )}
+              {live.party.map((id) => (
+                <div key={id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
+                  <div className="min-w-0 flex-1 truncate text-sm text-white">{actorName(id)}</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-white/10 text-white"
+                    onClick={() => act(() => cheats.removeActorFromParty(iframeRef.current, id))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-2 text-xs text-white/40">In-game only</div>
+          )}
+          <div className="max-h-48 overflow-y-auto thin-scroll rounded-md border border-white/10 divide-y divide-white/5">
+            {gameData.actors.map((a) => (
+              <div key={a.id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
+                <span className="w-7 text-[10px] tabular-nums text-white/30">#{a.id}</span>
+                <div className="min-w-0 flex-1 truncate text-sm text-white">{a.name}</div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-white/10 text-white"
+                  disabled={!active}
+                  onClick={() => act(() => cheats.addActorToParty(iframeRef.current, a.id))}
+                >
+                  Add
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <SectionTitle>Inventory</SectionTitle>
+          <div className="mb-2 grid grid-cols-3 gap-1.5">
             {(["item", "weapon", "armor"] as const).map((k) => (
               <Button
                 key={k}
                 size="sm"
                 variant={giveKind === k ? "default" : "outline"}
-                className={
-                  giveKind === k
-                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
-                    : "border-white/15 bg-white/5 hover:bg-white/10"
-                }
+                className={giveKind === k ? selBtn : outBtn}
                 onClick={() => setGiveKind(k)}
               >
                 {k === "item" ? "Items" : k === "weapon" ? "Weapons" : "Armors"}
@@ -770,12 +756,11 @@ function DebugTab({
             ))}
           </div>
           <div className="relative mb-2">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search…"
-              className="h-8 pl-8 bg-white/5 border-white/15 text-sm"
+              className="h-8 border-white/20 bg-white/5 text-sm text-white"
             />
           </div>
           <div className="max-h-64 overflow-y-auto thin-scroll rounded-md border border-white/10 divide-y divide-white/5">
@@ -783,12 +768,12 @@ function DebugTab({
               <div key={e.id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
                 <IconImg index={e.icon} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">{e.name}</div>
+                  <div className="truncate text-sm text-white">{e.name}</div>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/15 bg-white/5 hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
                   disabled={!active}
                   onClick={() => act(() => cheats.giveThing(iframeRef.current, giveKind, e.id, 1))}
                 >
@@ -797,7 +782,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/15 bg-white/5 hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
                   disabled={!active}
                   onClick={() => act(() => cheats.giveThing(iframeRef.current, giveKind, e.id, 10))}
                 >
@@ -810,16 +795,12 @@ function DebugTab({
             )}
           </div>
 
-          <SectionTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" /> Switches ({gameData.switches.length})
-            </span>
-          </SectionTitle>
+          <SectionTitle>Switches ({gameData.switches.length})</SectionTitle>
           <div className="max-h-56 overflow-y-auto thin-scroll rounded-md border border-white/10 divide-y divide-white/5">
             {gameData.switches.map((s) => (
               <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
-                <span className="text-[10px] text-white/30 tabular-nums w-6">#{s.id}</span>
-                <div className="min-w-0 flex-1 truncate text-sm">{s.name}</div>
+                <span className="w-6 text-[10px] tabular-nums text-white/30">#{s.id}</span>
+                <div className="min-w-0 flex-1 truncate text-sm text-white">{s.name}</div>
                 <Switch
                   checked={switchValue(s.id)}
                   disabled={!active}
@@ -829,27 +810,23 @@ function DebugTab({
             ))}
           </div>
 
-          <SectionTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" /> Variables ({gameData.variables.length})
-            </span>
-          </SectionTitle>
+          <SectionTitle>Variables ({gameData.variables.length})</SectionTitle>
           <div className="max-h-56 overflow-y-auto thin-scroll rounded-md border border-white/10 divide-y divide-white/5">
             {gameData.variables.map((v) => (
               <div key={v.id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
-                <span className="text-[10px] text-white/30 tabular-nums w-6">#{v.id}</span>
-                <div className="min-w-0 flex-1 truncate text-sm">{v.name}</div>
+                <span className="w-6 text-[10px] tabular-nums text-white/30">#{v.id}</span>
+                <div className="min-w-0 flex-1 truncate text-sm text-white">{v.name}</div>
                 <Input
                   value={varDraft[v.id] ?? String(variableValue(v.id))}
                   onChange={(e) => setVarDraft((d) => ({ ...d, [v.id]: e.target.value.replace(/[^0-9-]/g, "") }))}
                   disabled={!active}
                   inputMode="numeric"
-                  className="h-7 w-20 bg-white/5 border-white/15 text-xs"
+                  className="h-7 w-20 border-white/20 bg-white/5 text-xs text-white"
                 />
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-[11px] border-white/15 bg-white/5 hover:bg-white/10"
+                  className="h-7 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
                   disabled={!active}
                   onClick={() => {
                     const val = Number(varDraft[v.id] ?? variableValue(v.id));
@@ -867,20 +844,16 @@ function DebugTab({
             ))}
           </div>
 
-          <SectionTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" /> Teleport ({gameData.maps.length} maps)
-            </span>
-          </SectionTitle>
+          <SectionTitle>Teleport ({gameData.maps.length} maps)</SectionTitle>
           <div className="max-h-56 overflow-y-auto thin-scroll rounded-md border border-white/10 divide-y divide-white/5">
             {gameData.maps.map((m) => (
               <div key={m.id} className="flex items-center gap-2 px-2 py-1.5 cheat-list-row">
-                <span className="text-[10px] text-white/30 tabular-nums w-7">#{m.id}</span>
-                <div className="min-w-0 flex-1 truncate text-sm">{m.name}</div>
+                <span className="w-7 text-[10px] tabular-nums text-white/30">#{m.id}</span>
+                <div className="min-w-0 flex-1 truncate text-sm text-white">{m.name}</div>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/15 bg-white/5 hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
                   disabled={!active}
                   onClick={() => act(() => cheats.teleportToMap(iframeRef.current, m.id))}
                 >
@@ -892,20 +865,16 @@ function DebugTab({
         </>
       )}
 
-      <SectionTitle>
-        <span className="inline-flex items-center gap-1.5">
-          <Trash2 className="w-3.5 h-3.5" /> Offline Cache
-        </span>
-      </SectionTitle>
+      <SectionTitle>Offline Cache</SectionTitle>
       <Button
         size="sm"
         variant="outline"
-        className="w-full border-red-400/30 bg-red-400/10 hover:bg-red-400/20 text-red-200"
+        className={`w-full ${outBtn}`}
         onClick={() => {
           onExitGame();
         }}
       >
-        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Exit &amp; clear offline cache
+        Exit &amp; clear offline cache
       </Button>
     </div>
   );
@@ -923,19 +892,16 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "tween", duration: 0.18, ease: "easeOut" }}
-      className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[400px] bg-black/92 backdrop-blur-md border-l border-white/10 flex flex-col"
+      className="fixed right-0 top-0 bottom-0 z-50 w-full sm:w-[400px] bg-black/50 backdrop-blur-md border-l border-white/15 flex flex-col"
       role="dialog"
       aria-label="Game settings"
     >
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-emerald-300" />
-          <span className="font-ssa-bold tracking-widest text-sm">SETTINGS</span>
-        </div>
+      <div className="flex items-center justify-between px-4 pb-2 pt-4">
+        <span className="text-lg font-bold text-white">Settings</span>
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 w-8 p-0 hover:bg-white/10"
+          className="h-8 w-8 p-0 text-white hover:bg-white/10"
           onClick={onClose}
           aria-label="Close settings"
         >
@@ -944,26 +910,36 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
       </div>
 
       <Tabs defaultValue="crt" className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-        <TabsList className="grid grid-cols-3 bg-white/5">
-          <TabsTrigger value="crt" className="text-xs">CRT</TabsTrigger>
-          <TabsTrigger value="game" className="text-xs">GAME</TabsTrigger>
-          <TabsTrigger value="debug" className="text-xs">DEBUG</TabsTrigger>
+        <TabsList className="grid h-10 w-full grid-cols-3 rounded-lg border border-white/10 bg-white/5 p-1">
+          <TabsTrigger
+            value="crt"
+            className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
+          >
+            CRT
+          </TabsTrigger>
+          <TabsTrigger
+            value="game"
+            className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
+          >
+            GAME
+          </TabsTrigger>
+          <TabsTrigger
+            value="debug"
+            className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
+          >
+            DEBUG
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="crt" className="flex-1 overflow-y-auto thin-scroll mt-3 pr-1">
+        <TabsContent value="crt" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
           <CrtTab />
         </TabsContent>
-        <TabsContent value="game" className="flex-1 overflow-y-auto thin-scroll mt-3 pr-1">
+        <TabsContent value="game" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
           <GameTab iframeRef={iframeRef} />
         </TabsContent>
-        <TabsContent value="debug" className="flex-1 overflow-y-auto thin-scroll mt-3 pr-1">
+        <TabsContent value="debug" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
           <DebugTab iframeRef={iframeRef} onExitGame={onExitGame} />
         </TabsContent>
       </Tabs>
-
-      <div className="px-4 py-3 border-t border-white/10 text-[10px] leading-relaxed text-white/35">
-        ShitStickAdventure by TMX2023 · CRT shader by gingerbeardman (MIT) ·
-        Web edition
-      </div>
     </motion.div>
   );
 }

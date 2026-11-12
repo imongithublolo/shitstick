@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * The "very minimal" first screen: game identity + one download button.
- * While downloading: a capsule progress bar and the asset paths being cached.
- * When cached: a single Play button.
+ * The first screen: as minimal as it gets — Comic Sans, black & white, just
+ * the icon (no frame), the title, one black DOWNLOAD button with the size
+ * under it. While downloading: the title, a capsule progress bar and the file
+ * names being cached — and the icon turns into a DVD-screensaver, bouncing
+ * around the screen (it eases back to the center when done).
  */
-import { CircleAlert, Download, Play, RotateCcw, SquareArrowOutUpRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { formatBytes, canInstall, promptInstall, type DownloadProgress } from "@/lib/pwa";
+import { useEffect, useRef } from "react";
+import { formatBytes, type DownloadProgress } from "@/lib/pwa";
 
 type Props = {
   phase: "idle" | "downloading" | "ready";
@@ -16,140 +17,188 @@ type Props = {
   cachedFiles: { done: number; total: number } | null;
   onDownload: () => void;
   onPlay: () => void;
-  onRedownload: () => void;
 };
 
-export function DownloadScreen({
-  phase,
-  progress,
-  totalBytes,
-  cachedFiles,
-  onDownload,
-  onPlay,
-  onRedownload,
-}: Props) {
+/**
+ * The game icon. Sits above the title normally; while downloading it becomes
+ * a DVD screensaver that bounces around the viewport. Position is animated
+ * continuously via rAF so the center <-> bounce switch is perfectly smooth.
+ */
+function DvdIcon({ bouncing }: { bouncing: boolean }) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const pos = useRef({ x: -1, y: -1 });
+  const vel = useRef({ x: 0.17, y: 0.13 }); // px per ms
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+
+    const size = () => el.getBoundingClientRect().width || 96;
+    const center = () => ({
+      x: (window.innerWidth - size()) / 2,
+      y: window.innerHeight * 0.26 - size() / 2,
+    });
+
+    if (!mounted.current) {
+      pos.current = center();
+      mounted.current = true;
+    }
+
+    let raf = 0;
+    let last = performance.now();
+
+    const apply = () => {
+      el.style.transform = `translate(${pos.current.x}px, ${pos.current.y}px)`;
+    };
+
+    const step = (now: number) => {
+      const dt = Math.min(64, now - last);
+      last = now;
+
+      if (bouncing) {
+        let { x, y } = pos.current;
+        let { x: vx, y: vy } = vel.current;
+        x += vx * dt;
+        y += vy * dt;
+        const maxX = Math.max(0, window.innerWidth - size());
+        const maxY = Math.max(0, window.innerHeight - size());
+        if (x <= 0) {
+          x = 0;
+          vx = Math.abs(vx);
+        }
+        if (x >= maxX) {
+          x = maxX;
+          vx = -Math.abs(vx);
+        }
+        if (y <= 0) {
+          y = 0;
+          vy = Math.abs(vy);
+        }
+        if (y >= maxY) {
+          y = maxY;
+          vy = -Math.abs(vy);
+        }
+        pos.current = { x, y };
+        vel.current = { x: vx, y: vy };
+      } else {
+        // glide back to the resting spot above the title
+        const t = center();
+        const p = pos.current;
+        const k = Math.min(1, dt / 260);
+        pos.current = { x: p.x + (t.x - p.x) * k, y: p.y + (t.y - p.y) * k };
+      }
+      apply();
+      raf = requestAnimationFrame(step);
+    };
+
+    apply();
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [bouncing]);
+
+  return (
+    <div
+      ref={elRef}
+      className="fixed left-0 top-0 z-[5] will-change-transform pointer-events-none"
+      aria-hidden
+    >
+      <img
+        src="/game-icon.png"
+        alt=""
+        draggable={false}
+        className="pixelated block w-24 h-24 sm:w-28 sm:h-28 select-none"
+      />
+    </div>
+  );
+}
+
+export function DownloadScreen({ phase, progress, totalBytes, onDownload, onPlay }: Props) {
   const pct =
     progress && progress.totalBytes > 0
       ? Math.min(100, (progress.bytes / progress.totalBytes) * 100)
       : 0;
+  const failed = progress?.phase === "error";
+
+  const show = (active: boolean) =>
+    `absolute inset-x-0 flex flex-col items-center transition-[opacity,visibility] duration-500 ${
+      active ? "opacity-100" : "opacity-0 invisible pointer-events-none"
+    }`;
 
   return (
-    <div className="crt-bg crt-vignette fixed inset-0 flex flex-col items-center justify-center gap-7 px-6 select-none">
-      <img
-        src="/game-icon.png"
-        alt="ShitStickAdventure"
-        className="pixelated w-20 h-20 sm:w-24 sm:h-24 rounded-2xl shadow-[0_0_40px_rgba(124,255,178,0.12)]"
-        draggable={false}
-      />
+    <div className="crt-bg fixed inset-0 select-none bg-black text-white font-comic overflow-hidden">
+      <DvdIcon bouncing={phase === "downloading"} />
 
-      <div className="text-center">
-        <h1 className="font-ssa-bold text-2xl sm:text-3xl tracking-[0.18em] text-white">
-          SHITSTICK<span className="text-emerald-300">ADVENTURE</span>
-        </h1>
-        <p className="mt-2 text-[10px] tracking-[0.34em] text-white/35">
-          BY TMX2023 · WEB EDITION · CRT + OFFLINE
-        </p>
+      {/* the title — never moves, so switching phases is seamless */}
+      <h1 className="absolute left-1/2 -translate-x-1/2 top-[40%] -translate-y-1/2 z-10 whitespace-nowrap text-3xl sm:text-4xl text-white">
+        ShitStickAdventure
+      </h1>
+
+      {/* idle: the black download button with the size under it */}
+      <div className={`${show(phase === "idle")} top-[52%] z-10 gap-4`}>
+        <button
+          type="button"
+          onClick={onDownload}
+          className="rounded-full border-2 border-white bg-black px-14 py-3.5 text-xl font-bold tracking-widest text-white transition-colors duration-200 hover:bg-white hover:text-black"
+        >
+          DOWNLOAD
+        </button>
+        <div className="text-base text-white/50">{formatBytes(totalBytes)}</div>
       </div>
 
-      {phase === "idle" && (
-        <div className="flex flex-col items-center gap-3">
-          <Button
-            size="lg"
-            onClick={onDownload}
-            className="h-14 px-10 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold tracking-widest text-base"
-          >
-            <Download className="w-5 h-5 mr-2.5" />
-            DOWNLOAD
-          </Button>
-          <p className="text-[11px] text-white/35">
-            {formatBytes(totalBytes)} · works offline after download · installable as an app
-          </p>
-        </div>
-      )}
-
-      {phase === "downloading" && (
-        <div className="w-full max-w-md flex flex-col gap-2.5">
-          <div className="flex items-baseline justify-between text-[11px] tracking-widest text-white/50">
-            <span>CACHING GAME ASSETS</span>
-            <span className="text-emerald-300 tabular-nums">{pct.toFixed(0)}%</span>
-          </div>
-          <div className="capsule-track h-3 w-full overflow-hidden">
+      {/* downloading: just the progress + what it's caching */}
+      <div className={`${show(phase === "downloading")} top-[50%] z-10 px-8`}>
+        <div className="w-full max-w-xs sm:max-w-sm">
+          <div className="capsule-track h-3.5 w-full overflow-hidden">
             <div className="capsule-fill h-full" style={{ width: `${pct}%` }} />
           </div>
-          <div className="flex items-baseline justify-between text-[11px] text-white/40 tabular-nums">
-            <span>
-              {formatBytes(progress?.bytes ?? 0)} / {formatBytes(progress?.totalBytes || totalBytes)}
-            </span>
-            <span>
-              {progress?.filesDone ?? 0} / {progress?.filesTotal ?? cachedFiles?.total ?? "?"} files
-            </span>
+          <div className="mt-2.5 text-center text-base text-white/70 tabular-nums">
+            {pct.toFixed(0)}%
           </div>
 
-          <div className="mt-1 min-h-[86px] font-mono">
-            <div className="text-[11px] text-emerald-300/90 truncate" key={progress?.currentFile}>
-              {progress?.currentFile ? `caching: ${progress.currentFile}` : "\u00A0"}
+          <div className="mt-4 flex flex-col items-center gap-0.5">
+            <div key={progress?.currentFile} className="max-w-full truncate text-sm text-white/80">
+              {progress?.currentFile || "\u00A0"}
             </div>
-            <div className="text-[10px] text-white/25 leading-4 truncate">
-              {(progress?.recent ?? []).slice(0, 5).map((p) => (
-                <div key={p} className="truncate">
-                  {p}
-                </div>
-              ))}
+            <div className="h-14 overflow-hidden text-center">
+              {(progress?.recent ?? [])
+                .slice(-3)
+                .reverse()
+                .map((p) => (
+                  <div key={p} className="max-w-full truncate text-[11px] leading-4 text-white/30">
+                    {p}
+                  </div>
+                ))}
             </div>
           </div>
 
-          {progress?.phase === "error" && (
-            <div className="flex items-center gap-2 rounded-md border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-200">
-              <CircleAlert className="w-4 h-4 shrink-0" />
-              <span className="min-w-0">{progress.error}</span>
-            </div>
-          )}
-          {progress?.phase === "error" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-white/15 bg-white/5"
-              onClick={onDownload}
-            >
-              <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Retry (resumes)
-            </Button>
-          )}
-        </div>
-      )}
-
-      {phase === "ready" && (
-        <div className="flex flex-col items-center gap-3">
-          <Button
-            size="lg"
-            onClick={onPlay}
-            className="h-14 px-14 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold tracking-widest text-base shadow-[0_0_30px_rgba(52,211,153,0.35)]"
-          >
-            <Play className="w-5 h-5 mr-2.5" />
-            PLAY
-          </Button>
-          <div className="flex items-center gap-3 text-[11px] text-white/35">
-            <span>
-              OFFLINE READY · {cachedFiles ? `${cachedFiles.done}/${cachedFiles.total}` : formatBytes(totalBytes)} cached
-            </span>
-            {canInstall() && (
+          {failed && (
+            <div className="mt-2 flex flex-col items-center gap-2">
+              <div className="max-w-full text-center text-xs text-white/60 break-words">
+                {progress?.error}
+              </div>
               <button
                 type="button"
-                onClick={() => promptInstall()}
-                className="inline-flex items-center gap-1 text-emerald-300/80 hover:text-emerald-300 underline underline-offset-2"
+                onClick={onDownload}
+                className="rounded-full border border-white/50 px-6 py-1.5 text-sm text-white/80 transition-colors hover:bg-white hover:text-black"
               >
-                <SquareArrowOutUpRight className="w-3 h-3" /> Install app
+                Retry
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onRedownload}
-              className="text-white/30 hover:text-white/60 underline underline-offset-2"
-            >
-              re-download
-            </button>
-          </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* ready: play */}
+      <div className={`${show(phase === "ready")} top-[52%] z-10`}>
+        <button
+          type="button"
+          onClick={onPlay}
+          className="rounded-full border-2 border-white bg-black px-16 py-3.5 text-xl font-bold tracking-widest text-white transition-colors duration-200 hover:bg-white hover:text-black"
+        >
+          PLAY
+        </button>
+      </div>
     </div>
   );
 }
