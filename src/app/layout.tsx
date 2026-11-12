@@ -3,7 +3,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "ShitStickAdventure — Web Edition",
+  title: "SSA",
   description:
     "ShitStickAdventure by TMX2023 as an offline-capable web game with a WebGL CRT shader. Download once, play anywhere.",
   applicationName: "ShitStickAdventure Web",

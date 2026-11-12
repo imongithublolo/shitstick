@@ -3,8 +3,9 @@
 /**
  * ShitStickAdventure — Web Edition portal.
  *
- * Flow: minimal landing screen -> download button (also prompts the PWA
- * install) -> capsule progress with the asset names being cached -> Play.
+ * Flow: invite gate -> minimal landing screen -> download button -> capsule
+ * progress with the asset names being cached -> Play. No PWA install popup
+ * is ever shown (the browser's prompt is captured and prevented).
  * The game runs in a same-origin iframe with a WebGL CRT shader on top and a
  * gear-icon settings panel (CRT / Game / Debug & Cheats).
  */
@@ -13,12 +14,10 @@ import { DownloadScreen } from "@/components/DownloadScreen";
 import { GameStage } from "@/components/GameStage";
 import { InviteGate, isInvited } from "@/components/InviteGate";
 import {
-  canInstall,
   captureInstallPrompt,
   clearGameCache,
   downloadGameAssets,
   isGameCached,
-  promptInstall,
   registerServiceWorker,
   type DownloadProgress,
 } from "@/lib/pwa";
@@ -62,9 +61,6 @@ export default function Home() {
     if (downloadLock.current) return;
     downloadLock.current = true;
     setPhase("downloading");
-
-    // the download click doubles as the PWA install prompt gesture
-    if (canInstall()) void promptInstall();
 
     await downloadGameAssets((p) => {
       setProgress(p);

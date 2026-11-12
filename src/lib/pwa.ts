@@ -23,6 +23,12 @@ const VERSION_KEY = "ssa-game-version";
 
 let deferredInstallPrompt: any = null;
 
+/**
+ * The PWA stays installable (offline, service worker, manifest), but no
+ * install popup is ever shown: the browser's beforeinstallprompt event is
+ * captured and prevented here. Users can still install from the browser
+ * menu ("Install app" / "Add to Home Screen").
+ */
 export function captureInstallPrompt(): void {
   if (typeof window === "undefined") return;
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -32,22 +38,6 @@ export function captureInstallPrompt(): void {
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
   });
-}
-
-export function canInstall(): boolean {
-  return deferredInstallPrompt !== null;
-}
-
-export async function promptInstall(): Promise<boolean> {
-  if (!deferredInstallPrompt) return false;
-  try {
-    await deferredInstallPrompt.prompt();
-    const choice = await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    return choice?.outcome === "accepted";
-  } catch {
-    return false;
-  }
 }
 
 export function registerServiceWorker(): void {

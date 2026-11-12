@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * The very first screen: invite-only. Just the "(Invite Code:)" text above a
- * capsule password field — Comic Sans, black & white, nothing else.
- * Enter submits; a wrong code shakes and clears.
+ * The very first screen: invite-only. Just the "Invite Code:" text above a
+ * capsule text field — Comic Sans, black & white, nothing else. Enter
+ * submits; a wrong code shakes and clears. (A plain text input on purpose:
+ * password fields make password managers pop up.)
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -51,11 +52,13 @@ export function InviteGate({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="crt-bg fixed inset-0 flex flex-col items-center justify-center gap-5 select-none bg-black font-comic">
-      <div className="text-xl sm:text-2xl text-white">(Invite Code:)</div>
+      <div className="text-xl sm:text-2xl text-white">Invite Code:</div>
       <input
-        type="password"
+        type="text"
         autoFocus
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
         spellCheck={false}
         value={value}
         onChange={(e) => setValue(e.target.value)}
