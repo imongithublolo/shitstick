@@ -84,7 +84,8 @@ Nothing else in the game was modified.
 
 ## Deploy to Vercel
 
-1. Push this repository to GitHub (never commit credentials or tokens).
+1. Push this repository to GitHub (never commit credentials or tokens) —
+   it lives at <https://github.com/imongithublolo/shitstick>.
 2. In Vercel: **Add New → Project → Import** the repo. Defaults are fine:
    - Framework preset: Next.js (auto-detected)
    - No environment variables needed
