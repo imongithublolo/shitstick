@@ -183,10 +183,17 @@ export type DebugSettings = {
   showPlayerInfo: boolean;
 };
 
+export type SaveSettings = {
+  autosaveOn: boolean;
+  /** autosave interval in minutes */
+  autosaveMins: number;
+};
+
 export type PortalSettings = {
   crt: CrtSettings;
   game: GameSettings;
   debug: DebugSettings;
+  saves: SaveSettings;
 };
 
 export const CRT_DEFAULTS: CrtSettings = {
@@ -256,6 +263,11 @@ export const DEBUG_DEFAULTS: DebugSettings = {
   showPlayerInfo: false,
 };
 
+export const SAVE_DEFAULTS: SaveSettings = {
+  autosaveOn: true,
+  autosaveMins: 2,
+};
+
 type SettingsStore = PortalSettings & {
   setCrt: (patch: Partial<CrtSettings>) => void;
   resetCrt: () => void;
@@ -266,6 +278,7 @@ type SettingsStore = PortalSettings & {
   setVolumes: (patch: Partial<GameSettings["volumes"]>) => void;
   setDebug: (patch: Partial<DebugSettings>) => void;
   resetDebug: () => void;
+  setSaves: (patch: Partial<SaveSettings>) => void;
 };
 
 export const useSettings = create<SettingsStore>()(
@@ -278,6 +291,7 @@ export const useSettings = create<SettingsStore>()(
         volumes: { ...GAME_DEFAULTS.volumes },
       },
       debug: { ...DEBUG_DEFAULTS },
+      saves: { ...SAVE_DEFAULTS },
       setCrt: (patch) => set((s) => ({ crt: { ...s.crt, ...patch } })),
       resetCrt: () => set({ crt: { ...CRT_DEFAULTS } }),
       applyCrtPreset: (name) =>
@@ -296,6 +310,7 @@ export const useSettings = create<SettingsStore>()(
         })),
       setDebug: (patch) => set((s) => ({ debug: { ...s.debug, ...patch } })),
       resetDebug: () => set({ debug: { ...DEBUG_DEFAULTS } }),
+      setSaves: (patch) => set((s) => ({ saves: { ...s.saves, ...patch } })),
     }),
     {
       name: "ssa-portal-settings",

@@ -12,6 +12,7 @@ import { CrtLayer } from "@/components/CrtLayer";
 import { DebugOverlay } from "@/components/DebugOverlay";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useSettings } from "@/lib/settings";
+import * as savesLib from "@/lib/saves";
 import {
   applyKeybinds,
   applyVolumes,
@@ -40,6 +41,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   const [showPortBy, setShowPortBy] = useState(true);
   const game = useSettings((s) => s.game);
   const debug = useSettings((s) => s.debug);
+  const savesCfg = useSettings((s) => s.saves);
   const { toast } = useToast();
 
   // "(port by b29s)" — shows on every game launch, then fades away
@@ -62,6 +64,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
       installFpsMeter(iframeRef.current);
       installAudioUnlock(iframeRef.current);
       snapshotKeyMapper(iframeRef.current);
+      savesLib.installSaveHooks(iframeRef.current);
 
       const s = useSettings.getState();
       applyKeybinds(iframeRef.current, s.game.keybinds);
@@ -110,6 +113,30 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
     }
   }, [active, debug.moveSpeed]);
 
+  // keep the cheat snapshot current — it stamps every save file the engine
+  // writes (see saves.ts installSaveHooks)
+  useEffect(() => {
+    const w = iframeRef.current?.contentWindow;
+    if (!w) return;
+    w.__ssaCheatSnapshot =
+      debug.noclip ||
+      debug.speedMult !== 1 ||
+      debug.encounterOff ||
+      debug.godMode ||
+      debug.moveSpeed > 0;
+  }, [debug, booted]);
+
+  // portal autosave: interval saves to slot 0 while a playthrough is running
+  useEffect(() => {
+    if (!savesCfg.autosaveOn) return;
+    const t = window.setInterval(() => {
+      if (isGameActive(iframeRef.current)) {
+        void savesLib.autosave(iframeRef.current).catch(() => {});
+      }
+    }, Math.max(1, savesCfg.autosaveMins) * 60_000);
+    return () => window.clearInterval(t);
+  }, [savesCfg.autosaveOn, savesCfg.autosaveMins]);
+
   useEffect(() => {
     if (!panelOpen) return;
     const handler = (e: KeyboardEvent) => {
@@ -126,6 +153,23 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   useEffect(() => {
     if (!panelOpen) iframeRef.current?.contentWindow?.focus();
   }, [panelOpen]);
+
+  // final autosave before the iframe unmounts (only in a safe context)
+  const exitGame = useCallback(async () => {
+    const s = useSettings.getState().saves;
+    if (s.autosaveOn && isGameActive(iframeRef.current)) {
+      await savesLib.autosave(iframeRef.current).catch(() => {});
+    }
+    onExit();
+  }, [onExit]);
+
+  const exitAndClear = useCallback(async () => {
+    const s = useSettings.getState().saves;
+    if (s.autosaveOn && isGameActive(iframeRef.current)) {
+      await savesLib.autosave(iframeRef.current).catch(() => {});
+    }
+    onExitClearCache();
+  }, [onExitClearCache]);
 
   return (
     <div
@@ -198,7 +242,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
           title="Exit"
           onClick={(e) => {
             e.stopPropagation();
-            onExit();
+            void exitGame();
           }}
           className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-white/60 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors"
         >
@@ -212,7 +256,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
             iframeRef={iframeRef}
             open
             onClose={() => setPanelOpen(false)}
-            onExitGame={onExitClearCache}
+            onExitGame={() => void exitAndClear()}
           />
         )}
       </AnimatePresence>

@@ -33,6 +33,8 @@ import {
   isGameActive,
 } from "@/lib/gameBridge";
 import * as cheats from "@/lib/cheats";
+import * as savesLib from "@/lib/saves";
+import type { BackupMeta, SaveSlotInfo } from "@/lib/saves";
 
 type Props = {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -881,6 +883,286 @@ function DebugTab({
 }
 
 // ---------------------------------------------------------------------------
+// Saves tab
+// ---------------------------------------------------------------------------
+
+const AUTOSAVE_CHOICES = [1, 2, 5, 10];
+
+function fmtSaveTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(ts);
+  }
+}
+
+function CheatBadge({ cheats }: { cheats: boolean | null }) {
+  if (cheats === null) return null;
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide whitespace-nowrap ${
+        cheats ? "bg-white text-black" : "border border-white/40 text-white/70"
+      }`}
+    >
+      {cheats ? "CHEATS" : "CLEAN"}
+    </span>
+  );
+}
+
+function SavesTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement | null> }) {
+  const saves = useSettings((s) => s.saves);
+  const setSaves = useSettings((s) => s.setSaves);
+  const debug = useSettings((s) => s.debug);
+  const { toast } = useToast();
+  const [slots, setSlots] = useState<SaveSlotInfo[]>([]);
+  const [backups, setBackups] = useState<BackupMeta[]>([]);
+  const [lastAuto, setLastAuto] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const [s, b] = await Promise.all([
+      savesLib.listSaves(iframeRef.current),
+      savesLib.listBackups(iframeRef.current),
+    ]);
+    setSlots(s);
+    setBackups(b);
+    setLastAuto(savesLib.lastAutosaveTime());
+  }, [iframeRef]);
+
+  useEffect(() => {
+    void refresh();
+    const t = window.setInterval(() => void refresh(), 4000);
+    return () => window.clearInterval(t);
+  }, [refresh]);
+
+  const run = useCallback(
+    async (fn: () => Promise<savesLib.SaveResult>) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        const r = await fn();
+        toast({
+          title: r.ok ? r.message : "Failed",
+          description: r.ok ? undefined : r.message,
+          duration: 2600,
+        });
+        if (r.ok) await refresh();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refresh, toast]
+  );
+
+  // clean save: every portal cheat off for the save itself, then back on
+  const cheatsOff = useCallback(() => {
+    const iframe = iframeRef.current;
+    cheats.setNoclip(iframe, false);
+    cheats.setSpeedMult(iframe, 1);
+    cheats.setEncounters(iframe, true);
+    const w = gameWindow(iframe);
+    try {
+      if (w?.$gamePlayer) w.$gamePlayer._moveSpeed = 4;
+    } catch {
+      /* ignore */
+    }
+    if (w) w.__ssaCheatSnapshot = false;
+  }, [iframeRef]);
+
+  const cheatsRestore = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (debug.noclip) cheats.setNoclip(iframe, true);
+    if (debug.speedMult !== 1) cheats.setSpeedMult(iframe, debug.speedMult);
+    if (debug.encounterOff) cheats.setEncounters(iframe, false);
+    if (debug.moveSpeed > 0) cheats.setMoveSpeed(iframe, debug.moveSpeed);
+    const w = gameWindow(iframe);
+    if (w) {
+      w.__ssaCheatSnapshot =
+        debug.noclip || debug.speedMult !== 1 || debug.encounterOff || debug.moveSpeed > 0;
+    }
+  }, [iframeRef, debug]);
+
+  const smallBtn = `h-7 px-2 text-xs ${outBtn}`;
+
+  return (
+    <div className="pb-2">
+      <SectionTitle>Autosave</SectionTitle>
+      <ToggleRow
+        label="Autosave"
+        checked={saves.autosaveOn}
+        onChange={(v) => setSaves({ autosaveOn: v })}
+      />
+      <div className="flex items-center gap-2 py-1.5">
+        <span className="flex-1 text-sm text-white">Every</span>
+        {AUTOSAVE_CHOICES.map((m) => (
+          <Button
+            key={m}
+            size="sm"
+            variant="outline"
+            className={`h-7 px-3 text-xs ${saves.autosaveMins === m ? selBtn : outBtn}`}
+            onClick={() => setSaves({ autosaveMins: m })}
+          >
+            {m}m
+          </Button>
+        ))}
+      </div>
+      <div className="py-1 text-xs text-white/50">
+        {lastAuto ? `Last autosave: ${fmtSaveTime(lastAuto)}` : "No autosave yet"}
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className={`mt-1 w-full ${outBtn}`}
+        disabled={busy}
+        onClick={() => run(() => savesLib.autosave(iframeRef.current))}
+      >
+        Save now
+      </Button>
+
+      <SectionTitle>Save Slots</SectionTitle>
+      {slots.length === 0 && (
+        <div className="rounded-lg border border-dashed border-white/15 px-3 py-4 text-center text-xs text-white/40">
+          No saves yet — start a game
+        </div>
+      )}
+      {slots.map((slot) => (
+        <div key={slot.id} className="mb-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold text-white">
+              {slot.auto ? "Auto" : `Slot ${slot.id}`}
+            </span>
+            <CheatBadge cheats={slot.cheats} />
+          </div>
+          <div className="mt-1 truncate text-xs text-white/70">
+            {slot.playtime || "—"}
+            {slot.timestamp ? ` · ${fmtSaveTime(slot.timestamp)}` : ""}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className={`flex-1 ${smallBtn}`}
+              disabled={busy}
+              onClick={() => run(() => savesLib.loadSlot(iframeRef.current, slot.id))}
+            >
+              Load
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className={`flex-1 ${smallBtn}`}
+              disabled={busy}
+              onClick={() => run(() => savesLib.saveToSlot(iframeRef.current, slot.id))}
+            >
+              {slot.auto ? "Update" : "Overwrite"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className={`flex-1 ${smallBtn}`}
+              disabled={busy}
+              onClick={() => run(() => savesLib.deleteSlot(iframeRef.current, slot.id))}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      ))}
+      <div className="mt-1 flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className={`h-8 flex-1 text-xs ${outBtn}`}
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const id = savesLib.nextFreeSlot(iframeRef.current);
+              if (id < 1) return { ok: false, message: "All 20 slots are full" };
+              return savesLib.saveToSlot(iframeRef.current, id);
+            })
+          }
+        >
+          Save to new slot
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className={`h-8 flex-1 text-xs ${outBtn}`}
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const id = savesLib.nextFreeSlot(iframeRef.current);
+              if (id < 1) return { ok: false, message: "All 20 slots are full" };
+              cheatsOff();
+              try {
+                const r = await savesLib.saveToSlot(iframeRef.current, id);
+                return r.ok ? { ok: true, message: `Clean save written to slot ${id}` } : r;
+              } finally {
+                cheatsRestore();
+              }
+            })
+          }
+        >
+          Clean save
+        </Button>
+      </div>
+
+      <SectionTitle>Backups</SectionTitle>
+      <Button
+        size="sm"
+        variant="outline"
+        className={`mb-2 w-full ${outBtn}`}
+        disabled={busy}
+        onClick={() => run(() => savesLib.createBackup(iframeRef.current))}
+      >
+        Create backup
+      </Button>
+      {backups.length === 0 && (
+        <div className="rounded-lg border border-dashed border-white/15 px-3 py-4 text-center text-xs text-white/40">
+          No backups yet
+        </div>
+      )}
+      {backups.map((b) => (
+        <div key={b.id} className="mb-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-bold text-white">{b.label}</span>
+            <CheatBadge cheats={b.cheats} />
+          </div>
+          <div className="mt-1 text-xs text-white/70">
+            {b.files} files · {fmtSaveTime(b.time)}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className={`flex-1 ${smallBtn}`}
+              disabled={busy}
+              onClick={() => run(() => savesLib.restoreBackup(iframeRef.current, b.id))}
+            >
+              Restore
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className={`flex-1 ${smallBtn}`}
+              disabled={busy}
+              onClick={() => run(() => savesLib.deleteBackup(iframeRef.current, b.id))}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Panel shell
 // ---------------------------------------------------------------------------
 
@@ -910,7 +1192,7 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
       </div>
 
       <Tabs defaultValue="crt" className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-        <TabsList className="grid h-10 w-full grid-cols-3 rounded-lg border border-white/10 bg-white/5 p-1">
+        <TabsList className="grid h-10 w-full grid-cols-4 rounded-lg border border-white/10 bg-white/5 p-1">
           <TabsTrigger
             value="crt"
             className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
@@ -924,6 +1206,12 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
             GAME
           </TabsTrigger>
           <TabsTrigger
+            value="saves"
+            className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
+          >
+            SAVES
+          </TabsTrigger>
+          <TabsTrigger
             value="debug"
             className="rounded-md text-sm font-bold text-white/60 transition-colors data-[state=active]:bg-white data-[state=active]:text-black"
           >
@@ -935,6 +1223,9 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
         </TabsContent>
         <TabsContent value="game" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
           <GameTab iframeRef={iframeRef} />
+        </TabsContent>
+        <TabsContent value="saves" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
+          <SavesTab iframeRef={iframeRef} />
         </TabsContent>
         <TabsContent value="debug" className="mt-3 flex-1 overflow-y-auto thin-scroll pr-1">
           <DebugTab iframeRef={iframeRef} onExitGame={onExitGame} />

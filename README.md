@@ -22,8 +22,9 @@ Port by b29s.
 | `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: edge-to-edge header banner on top, the icon left of the title / black DOWNLOAD button / size. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
 | `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
-| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT settings, game settings (FPS, FPS lock, keybinds, volumes), debug options & cheats |
+| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats |
 | `src/components/DebugOverlay.tsx` | Event hitboxes, collision grid, player info HUD |
+| `src/lib/saves.ts` | Portal save manager: engine slot list/save/load/delete, cheat-stamped saves, clean saves, autosave (safe-context guarded, also fires on exit), full save backups in a separate IndexedDB |
 | `src/lib/*` | Settings store, RMMZ bridge, cheat actions, PWA/downloader, shader sources |
 
 ### Game-file compatibility patches (3 small ones)
@@ -62,6 +63,13 @@ Nothing else in the game was modified.
   offline; game saves live in the browser's storage (RMMZ web mode).
 - **Launch splash**: "(Made by tmx_2011)" above "(port by b29s)" in Comic Sans appears over the game on
   every launch, then fades away.
+- **Saves category** (settings panel): autosave (on by default, every 1-10
+  minutes, plus one final save when you exit the game — only on the map, never
+  mid-battle or mid-dialog), all 20 engine save slots + the portal Auto slot
+  with Load / Overwrite / Delete, "Save to new slot", "Clean save" (writes a
+  save with every cheat turned off, then turns them back on), CHEATS/CLEAN
+  badges stamped on every save, and full one-click backups (create / restore /
+  delete) of every save file.
 - **CRT shader**: full gingerbeardman parameter set — enable toggle, pixel
   smoothing, scanline intensity/count/adaptive, brightness/contrast/saturation,
   bloom intensity/threshold, RGB shift, vignette, curvature, flicker — plus
