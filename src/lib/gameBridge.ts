@@ -223,3 +223,158 @@ export function whenEngineReady(
   }, 250);
   return () => window.clearInterval(timer);
 }
+
+// ---------------------------------------------------------------------------
+// Display: game resolution + auto-fit
+// ---------------------------------------------------------------------------
+
+export type DisplaySpec =
+  | { mode: "default" }
+  | { mode: "fixed"; w: number; h: number }
+  | { mode: "autofit" };
+
+type NativeRes = {
+  w: number;
+  h: number;
+  boxW: number;
+  boxH: number;
+  scale: number;
+  stretch: boolean | null;
+};
+
+/**
+ * Remember the engine's boot-time state. Must be called AFTER Scene_Boot.start
+ * (whose resizeScreen() sets the game's own size, UI box and scale), so
+ * "default" can restore exactly what the game itself would render.
+ */
+export function snapshotNativeResolution(
+  iframe: HTMLIFrameElement | null
+): NativeRes | null {
+  const w = gameWindow(iframe);
+  const G = w?.Graphics;
+  if (!w || !G || !G.width || !G.height) return null;
+  if (!w.__ssaNativeRes) {
+    w.__ssaNativeRes = {
+      w: G.width,
+      h: G.height,
+      boxW: G.boxWidth || G.width,
+      boxH: G.boxHeight || G.height,
+      scale: G._defaultScale ?? 1,
+      stretch: typeof G._stretchEnabled === "boolean" ? G._stretchEnabled : null,
+    };
+  }
+  return w.__ssaNativeRes as NativeRes;
+}
+
+/** True once the boot sequence is over (any scene other than Scene_Boot). */
+export function isDisplayReady(iframe: HTMLIFrameElement | null): boolean {
+  const w = gameWindow(iframe);
+  if (!w || !w.Graphics || !w.Graphics.width) return false;
+  const scene = w.SceneManager ? w.SceneManager._scene : null;
+  if (!scene) return false;
+  return !(w.Scene_Boot && scene instanceof w.Scene_Boot);
+}
+
+/** Poll until isDisplayReady (max ~30s), then callback. */
+export function whenDisplayReady(
+  iframe: HTMLIFrameElement | null,
+  cb: () => void,
+  timeoutMs = 30000
+): () => void {
+  const start = Date.now();
+  const timer = window.setInterval(() => {
+    if (isDisplayReady(iframe)) {
+      window.clearInterval(timer);
+      cb();
+    } else if (Date.now() - start > timeoutMs) {
+      window.clearInterval(timer);
+    }
+  }, 250);
+  return () => window.clearInterval(timer);
+}
+
+function even(n: number): number {
+  return Math.max(2, Math.round(n / 2) * 2);
+}
+
+/**
+ * Auto-fit: keep the engine's native height (identical vertical field of view)
+ * and widen horizontally to match the window shape, so the canvas fills the
+ * screen edge-to-edge — wide gameplay without letterbox bars.
+ */
+export function autofitResolution(
+  iframe: HTMLIFrameElement | null
+): { w: number; h: number } {
+  const w = gameWindow(iframe);
+  const native = snapshotNativeResolution(iframe);
+  const h = even(native?.h || 624);
+  const cw = Math.max(320, Math.round(w?.innerWidth || window.innerWidth || 1280));
+  const ch = Math.max(240, Math.round(w?.innerHeight || window.innerHeight || 720));
+  let width = Math.round((h * (cw / ch)) / 4) * 4;
+  const minW = even(native?.w || 816);
+  width = Math.min(1920, Math.max(minW, width));
+  return { w: width, h };
+}
+
+/** UI box inset the game itself uses (Scene_Boot.adjustBoxSize: margin 4*2). */
+const BOX_INSET = 8;
+
+/**
+ * Apply a display mode to the engine. Non-default sizes are clamped to
+ * something sane for the renderer, the canvas is stretched to fit the window
+ * (like the engine's own F3), and the current scene is re-entered so windows
+ * re-layout — but only when the layout-relevant values actually changed, and
+ * never during the boot/splash sequence or a battle.
+ */
+export function applyDisplay(
+  iframe: HTMLIFrameElement | null,
+  spec: DisplaySpec
+): boolean {
+  const w = gameWindow(iframe);
+  const G = w?.Graphics;
+  if (!w || !G || typeof G.resize !== "function" || !G.width) return false;
+  try {
+    const layout = () => [G.width, G.height, G.boxWidth, G.boxHeight].join("|");
+    const before = layout();
+    if (spec.mode === "default") {
+      const n = snapshotNativeResolution(iframe);
+      const tw = even(n?.w || 816);
+      const th = even(n?.h || 624);
+      // restore the engine's own stretch + scale behaviour (off on desktop)
+      G._stretchEnabled =
+        n?.stretch ?? (G._defaultStretchMode ? G._defaultStretchMode() : false);
+      if (n?.scale !== undefined && G._defaultScale !== n.scale) {
+        G.defaultScale = n.scale;
+      }
+      G.resize(tw, th);
+      G.boxWidth = n?.boxW || tw;
+      G.boxHeight = n?.boxH || th;
+    } else {
+      const raw =
+        spec.mode === "autofit"
+          ? autofitResolution(iframe)
+          : { w: even(spec.w), h: even(spec.h) };
+      const tw = Math.min(2560, Math.max(640, raw.w));
+      const th = Math.min(1440, Math.max(480, raw.h));
+      G._stretchEnabled = true;
+      G.resize(tw, th);
+      G.boxWidth = tw - BOX_INSET;
+      G.boxHeight = th - BOX_INSET;
+    }
+
+    if (before !== layout()) {
+      const SM = w.SceneManager;
+      const scene = SM ? SM._scene : null;
+      const cls = scene ? scene.constructor : null;
+      const skip =
+        !cls ||
+        (w.Scene_Boot && scene instanceof w.Scene_Boot) ||
+        (w.Scene_Splash && scene instanceof w.Scene_Splash) ||
+        (w.Scene_Battle && scene instanceof w.Scene_Battle);
+      if (!skip) SM.goto(cls); // re-enter so sprites/windows re-layout
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

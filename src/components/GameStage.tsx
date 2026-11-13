@@ -11,19 +11,24 @@ import { useToast } from "@/hooks/use-toast";
 import { CrtLayer } from "@/components/CrtLayer";
 import { DebugOverlay } from "@/components/DebugOverlay";
 import { SettingsPanel } from "@/components/SettingsPanel";
-import { useSettings } from "@/lib/settings";
+import { getDisplay, useSettings } from "@/lib/settings";
 import * as savesLib from "@/lib/saves";
 import {
+  applyDisplay,
   applyKeybinds,
   applyVolumes,
   installAudioUnlock,
   installFpsMeter,
+  isDisplayReady,
   isEngineBooted,
   isGameActive,
   readFps,
   setFpsLock,
   snapshotKeyMapper,
+  snapshotNativeResolution,
+  whenDisplayReady,
   whenEngineReady,
+  type DisplaySpec,
 } from "@/lib/gameBridge";
 import * as cheats from "@/lib/cheats";
 
@@ -36,12 +41,14 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [booted, setBooted] = useState(false);
   const [active, setActive] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [fps, setFps] = useState(0);
   const [showPortBy, setShowPortBy] = useState(true);
   const game = useSettings((s) => s.game);
   const debug = useSettings((s) => s.debug);
   const savesCfg = useSettings((s) => s.saves);
+  const display = useSettings((s) => getDisplay(s.debug));
   const { toast } = useToast();
 
   // "(port by b29s)" — shows on every game launch, then fades away
@@ -55,8 +62,21 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
     const t = window.setInterval(() => {
       setBooted(isEngineBooted(iframeRef.current));
       setActive(isGameActive(iframeRef.current));
+      setSceneReady(isDisplayReady(iframeRef.current));
     }, 500);
     return () => window.clearInterval(t);
+  }, []);
+
+  // engine display mode (resolution / auto-fit), from persisted settings
+  const applyDisplayMode = useCallback((): boolean => {
+    const d = getDisplay(useSettings.getState().debug);
+    let spec: DisplaySpec;
+    if (d.mode === "autofit") spec = { mode: "autofit" };
+    else if (d.mode === "custom") spec = { mode: "fixed", w: d.customW, h: d.customH };
+    else if (d.mode === "720p") spec = { mode: "fixed", w: 1280, h: 720 };
+    else if (d.mode === "1080p") spec = { mode: "fixed", w: 1920, h: 1080 };
+    else spec = { mode: "default" };
+    return applyDisplay(iframeRef.current, spec);
   }, []);
 
   const handleLoad = useCallback(() => {
@@ -70,6 +90,13 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
       applyKeybinds(iframeRef.current, s.game.keybinds);
       setFpsLock(iframeRef.current, s.game.fpsLock);
       applyVolumes(iframeRef.current, s.game.volumes);
+
+      // engine display: wait until the boot sequence is over, so the game's
+      // own Scene_Boot.resizeScreen() can't clobber our resolution afterwards
+      whenDisplayReady(iframeRef.current, () => {
+        snapshotNativeResolution(iframeRef.current);
+        applyDisplayMode();
+      });
 
       // re-apply persisted debug toggles
       const d = s.debug;
@@ -136,6 +163,31 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
     }, Math.max(1, savesCfg.autosaveMins) * 60_000);
     return () => window.clearInterval(t);
   }, [savesCfg.autosaveOn, savesCfg.autosaveMins]);
+
+  // apply the display mode when it changes (or once the boot is over)
+  useEffect(() => {
+    if (!sceneReady) return;
+    applyDisplayMode();
+  }, [sceneReady, display, applyDisplayMode]);
+
+  // auto-fit keeps following the window shape
+  useEffect(() => {
+    if (!sceneReady) return;
+    let t: number | undefined;
+    const onResize = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        if (getDisplay(useSettings.getState().debug).mode === "autofit") {
+          applyDisplayMode();
+        }
+      }, 300);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.clearTimeout(t);
+    };
+  }, [sceneReady, applyDisplayMode]);
 
   useEffect(() => {
     if (!panelOpen) return;

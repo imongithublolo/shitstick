@@ -170,7 +170,28 @@ export type GameSettings = {
   volumes: { bgm: number; bgs: number; me: number; se: number };
 };
 
+export type ResolutionMode = "default" | "720p" | "1080p" | "custom" | "autofit";
+
+export type DisplaySettings = {
+  mode: ResolutionMode;
+  /** even numbers, used when mode === "custom" */
+  customW: number;
+  customH: number;
+};
+
+export const DEFAULT_DISPLAY: DisplaySettings = {
+  mode: "default",
+  customW: 1280,
+  customH: 720,
+};
+
+/** Settings persisted before the display option existed may lack `display`. */
+export function getDisplay(d: { display?: DisplaySettings }): DisplaySettings {
+  return d.display ?? DEFAULT_DISPLAY;
+}
+
 export type DebugSettings = {
+  display: DisplaySettings;
   noclip: boolean;
   /** RMMZ move speed level 1..6 (4 = normal). 0 = untouched. */
   moveSpeed: number;
@@ -253,6 +274,7 @@ export const GAME_DEFAULTS: GameSettings = {
 };
 
 export const DEBUG_DEFAULTS: DebugSettings = {
+  display: { ...DEFAULT_DISPLAY },
   noclip: false,
   moveSpeed: 0,
   speedMult: 1,

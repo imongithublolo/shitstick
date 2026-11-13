@@ -21,13 +21,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   CRT_DEFAULTS,
+  getDisplay,
   KEYBIND_ACTION_LABELS,
   KeybindAction,
   keyLabel,
   useSettings,
+  type ResolutionMode,
 } from "@/lib/settings";
 import {
   applyKeybinds,
+  autofitResolution,
   gameWindow,
   isEngineBooted,
   isGameActive,
@@ -116,7 +119,7 @@ function SliderRow({
 
 /** Selected / unselected button styles (black & white only) */
 const selBtn = "bg-white text-black hover:bg-neutral-200";
-const outBtn = "border-white/25 bg-white/5 text-white hover:bg-white/10";
+const outBtn = "border-white/25 bg-white/5 text-white hover:bg-neutral-200";
 
 /** Renders an RMMZ icon from the game's own IconSet.png */
 function IconImg({ index, size = 22 }: { index: number; size?: number }) {
@@ -471,6 +474,18 @@ function collectEntries(arr: any): DataEntry[] {
   return out;
 }
 
+const RES_MODES: { value: ResolutionMode; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "720p", label: "720p" },
+  { value: "1080p", label: "1080p" },
+  { value: "custom", label: "Custom" },
+  { value: "autofit", label: "Auto-fit" },
+];
+
+/** even, clamped — for the custom resolution inputs */
+const clampEven = (n: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, Math.round(n / 2) * 2));
+
 function DebugTab({
   iframeRef,
   onExitGame,
@@ -489,6 +504,10 @@ function DebugTab({
   const [giveKind, setGiveKind] = useState<"item" | "weapon" | "armor">("item");
   const [goldAmount, setGoldAmount] = useState("1000");
   const [varDraft, setVarDraft] = useState<Record<number, string>>({});
+  const [liveRes, setLiveRes] = useState("");
+  const display = getDisplay(debug);
+  const [customW, setCustomW] = useState(String(display.customW));
+  const [customH, setCustomH] = useState(String(display.customH));
   const gameDataRef = useRef<GameData | null>(null);
 
   const report = (r: cheats.CheatResult) => {
@@ -516,6 +535,9 @@ function DebugTab({
       if (act) {
         setLive(snapshotLive(w, gameDataRef.current));
       }
+      setLiveRes(
+        booted && w?.Graphics ? `${w.Graphics.width}×${w.Graphics.height}` : ""
+      );
     }, 500);
     return () => window.clearInterval(t);
   }, [iframeRef]);
@@ -546,6 +568,61 @@ function DebugTab({
 
   return (
     <div>
+      <SectionTitle>Display</SectionTitle>
+      <div className="mb-2 text-sm text-white">Game Resolution</div>
+      <div className="grid grid-cols-5 gap-1.5">
+        {RES_MODES.map((m) => (
+          <Button
+            key={m.value}
+            size="sm"
+            variant={display.mode === m.value ? "default" : "outline"}
+            className={`${display.mode === m.value ? selBtn : outBtn} px-1 text-xs`}
+            onClick={() => setDebug({ display: { ...display, mode: m.value } })}
+          >
+            {m.label}
+          </Button>
+        ))}
+      </div>
+      {display.mode === "custom" && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <Input
+            value={customW}
+            onChange={(e) => setCustomW(e.target.value.replace(/[^0-9]/g, ""))}
+            inputMode="numeric"
+            aria-label="Custom resolution width"
+            className="h-8 w-20 border-white/20 bg-white/5 text-white"
+          />
+          <span className="text-white/50">×</span>
+          <Input
+            value={customH}
+            onChange={(e) => setCustomH(e.target.value.replace(/[^0-9]/g, ""))}
+            inputMode="numeric"
+            aria-label="Custom resolution height"
+            className="h-8 w-20 border-white/20 bg-white/5 text-white"
+          />
+          <Button
+            size="sm"
+            className={`h-8 shrink-0 ${selBtn}`}
+            onClick={() => {
+              const wv = clampEven(Number(customW) || display.customW, 640, 2560);
+              const hv = clampEven(Number(customH) || display.customH, 480, 1440);
+              setCustomW(String(wv));
+              setCustomH(String(hv));
+              setDebug({ display: { mode: "custom", customW: wv, customH: hv } });
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      )}
+      <div className="mt-1.5 text-xs text-white/50">
+        {display.mode === "autofit"
+          ? `Edge-to-edge wide · ${autofitResolution(iframeRef.current).w}×${autofitResolution(iframeRef.current).h}`
+          : engineReady && liveRes
+            ? `Now ${liveRes}`
+            : "Start the game to apply"}
+      </div>
+
       <SectionTitle>Cheat Toggles</SectionTitle>
       <ToggleRow
         label="Noclip"
@@ -714,7 +791,7 @@ function DebugTab({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-white/10 text-white"
+                    className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-neutral-200 text-white"
                     onClick={() => act(() => cheats.removeActorFromParty(iframeRef.current, id))}
                   >
                     Remove
@@ -733,7 +810,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-white/10 text-white"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 hover:bg-neutral-200 text-white"
                   disabled={!active}
                   onClick={() => act(() => cheats.addActorToParty(iframeRef.current, a.id))}
                 >
@@ -775,7 +852,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-neutral-200"
                   disabled={!active}
                   onClick={() => act(() => cheats.giveThing(iframeRef.current, giveKind, e.id, 1))}
                 >
@@ -784,7 +861,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-neutral-200"
                   disabled={!active}
                   onClick={() => act(() => cheats.giveThing(iframeRef.current, giveKind, e.id, 10))}
                 >
@@ -828,7 +905,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
+                  className="h-7 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-neutral-200"
                   disabled={!active}
                   onClick={() => {
                     const val = Number(varDraft[v.id] ?? variableValue(v.id));
@@ -855,7 +932,7 @@ function DebugTab({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-white/10"
+                  className="h-6 px-2 text-[11px] border-white/25 bg-white/5 text-white hover:bg-neutral-200"
                   disabled={!active}
                   onClick={() => act(() => cheats.teleportToMap(iframeRef.current, m.id))}
                 >
@@ -1183,7 +1260,7 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 w-8 p-0 text-white hover:bg-white/10"
+          className="h-8 w-8 p-0 text-white hover:bg-neutral-200"
           onClick={onClose}
           aria-label="Close settings"
         >

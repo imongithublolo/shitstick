@@ -22,7 +22,7 @@ Port by b29s.
 | `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: edge-to-edge header banner on top, the icon left of the title / black DOWNLOAD button / size. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
 | `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
-| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats |
+| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats (incl. game resolution & auto-fit) |
 | `src/components/DebugOverlay.tsx` | Event hitboxes, collision grid, player info HUD |
 | `src/lib/saves.ts` | Portal save manager: engine slot list/save/load/delete, cheat-stamped saves, clean saves, autosave (safe-context guarded, also fires on exit), full save backups in a separate IndexedDB |
 | `src/lib/*` | Settings store, RMMZ bridge, cheat actions, PWA/downloader, shader sources |
@@ -79,6 +79,13 @@ Nothing else in the game was modified.
   Sprint/Noclip/Menu — written into the game's `Input.keyMapper`), and
   BGM/BGS/ME/SE volume sliders.
 - **Debug & cheats** (from the game's own systems):
+  - **Display — game resolution**: Default (engine-native 816×624), 720p,
+    1080p, Custom (clamped to 640–2560 × 480–1440), and **Auto-fit** for
+    edge-to-edge wide gameplay: keeps the native height (same vertical field
+    of view) and widens to match the window shape, then keeps following window
+    resizes. Every mode scales the canvas to fit the window (like the engine's
+    own F3), the current size is shown live, and the boot sequence is waited
+    out so the game's own `resizeScreen()` can never clobber the setting.
   - Toggles: noclip (walk through walls), god mode, **no random encounters**
     (patches `Game_Player.canEncounter`, so it survives save/load and works
     with pixel movement)
