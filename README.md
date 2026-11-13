@@ -2,8 +2,9 @@
 
 A web portal for **ShitStickAdventure** by **TMX2023**
 (GameJolt: <https://gamejolt.com/games/hollyshit_Im_insanely_shit_adventuring_it/1005951>),
-packaged as an offline-capable PWA with a WebGL CRT shader, an in-game gear
-settings panel (CRT / Game / Debug+Cheats), FPS meter & lock, keybind
+packaged as an offline-capable PWA with a WebGL CRT shader, an in-game
+settings panel (CRT / Game / Saves / Debug+Cheats) opened from a slim
+liquid-glass HUD pill, FPS meter (readout + live graph) & lock, keybind
 remapping, and a cheat/debug suite built from the game's own data.
 
 Port by b29s.
@@ -20,9 +21,10 @@ Port by b29s.
 | `public/game-banner.webp` | The game's GameJolt header banner shown on the start page (served locally + cached offline) |
 | `src/components/InviteGate.tsx` | Invite-only first screen: "Invite Code:" above a capsule text field (Enter submits; the unlock is remembered in localStorage) |
 | `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: edge-to-edge header banner on top, the icon left of the title / black DOWNLOAD button / size. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
-| `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + gear button + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch |
+| `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch. The only on-screen control is the HUD pill; leaving the game happens from inside the settings |
+| `src/components/TopHud.tsx` | Thin liquid-glass see-through pill pinned to the top-center of gameplay: a sliders icon (opens settings) and, while Show FPS is on, a live FPS readout with a rolling FPS graph painted behind it on the glass |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
-| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats (incl. game resolution & auto-fit) |
+| `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats (incl. game resolution & auto-fit) + a persistent "Leave game" footer (no floating exit button) |
 | `src/components/DebugOverlay.tsx` | Event hitboxes, collision grid, player info HUD |
 | `src/lib/saves.ts` | Portal save manager: engine slot list/save/load/delete, cheat-stamped saves, clean saves, autosave (safe-context guarded, also fires on exit), full save backups in a separate IndexedDB |
 | `src/lib/*` | Settings store, RMMZ bridge, cheat actions, PWA/downloader, shader sources |
@@ -63,6 +65,14 @@ Nothing else in the game was modified.
   offline; game saves live in the browser's storage (RMMZ web mode).
 - **Launch splash**: "(Made by tmx_2011)" above "(port by b29s)" in Comic Sans appears over the game on
   every launch, then fades away.
+- **HUD pill** (in gameplay): a single 30px-tall liquid-glass capsule at the
+  top-center — see-through with a blur, styled after classic FPS overlays.
+  A sliders icon on the left opens the settings panel; while **Show FPS** is
+  on, a live FPS readout (like "59 FPS") appears next to it with a rolling
+  FPS graph painted into the pill's glass behind the text. There is no
+  right-hand button, and the floating gear/exit buttons are gone — leaving
+  the game is a "Leave game" button pinned to the bottom of the settings
+  panel (autosaves first if autosave is on).
 - **Saves category** (settings panel): autosave (on by default, every 1-10
   minutes, plus one final save when you exit the game — only on the map, never
   mid-battle or mid-dialog), all 20 engine save slots + the portal Auto slot
@@ -74,7 +84,8 @@ Nothing else in the game was modified.
   smoothing, scanline intensity/count/adaptive, brightness/contrast/saturation,
   bloom intensity/threshold, RGB shift, vignette, curvature, flicker — plus
   Subtle/Retro/Strong presets and reset.
-- **Game settings**: FPS counter, FPS lock (30/45/60/90/120/native via rAF
+- **Game settings**: FPS counter (shown in the top HUD pill with the live
+  graph), FPS lock (30/45/60/90/120/native via rAF
   throttle), live keybind remapping (Up/Down/Left/Right/Confirm/Cancel-Menu/
   Sprint/Noclip/Menu — written into the game's `Input.keyMapper`), and
   BGM/BGS/ME/SE volume sliders.

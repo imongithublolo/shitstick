@@ -43,6 +43,9 @@ type Props = {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   open: boolean;
   onClose: () => void;
+  /** plain leave: autosave-if-on, keep the offline cache */
+  onLeaveGame: () => void;
+  /** leave + wipe the offline game cache */
   onExitGame: () => void;
 };
 
@@ -1243,7 +1246,7 @@ function SavesTab({ iframeRef }: { iframeRef: React.RefObject<HTMLIFrameElement 
 // Panel shell
 // ---------------------------------------------------------------------------
 
-export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
+export function SettingsPanel({ iframeRef, open, onClose, onLeaveGame, onExitGame }: Props) {
   if (!open) return null;
   return (
     <motion.div
@@ -1268,7 +1271,7 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
         </Button>
       </div>
 
-      <Tabs defaultValue="crt" className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+      <Tabs defaultValue="crt" className="flex-1 flex flex-col min-h-0 px-4 pb-2">
         <TabsList className="grid h-10 w-full grid-cols-4 rounded-lg border border-white/10 bg-white/5 p-1">
           <TabsTrigger
             value="crt"
@@ -1308,6 +1311,17 @@ export function SettingsPanel({ iframeRef, open, onClose, onExitGame }: Props) {
           <DebugTab iframeRef={iframeRef} onExitGame={onExitGame} />
         </TabsContent>
       </Tabs>
+
+      {/* the leave action lives inside the settings (no floating button) */}
+      <div className="border-t border-white/10 px-4 py-3">
+        <Button
+          size="sm"
+          className="h-10 w-full border border-white/25 bg-white text-sm font-bold text-black transition-colors hover:bg-neutral-200"
+          onClick={onLeaveGame}
+        >
+          Leave game
+        </Button>
+      </div>
     </motion.div>
   );
 }

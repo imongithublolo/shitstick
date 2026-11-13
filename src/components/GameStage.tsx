@@ -2,15 +2,17 @@
 
 /**
  * Full-screen play view: same-origin RMMZ game iframe + CRT layer + debug
- * overlay + FPS HUD + the floating settings (gear) and exit buttons.
+ * overlay + the slim liquid-glass HUD pill (settings entry + optional FPS
+ * readout with a live graph) at the top. The leave action lives inside the
+ * settings drawer.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { LogOut, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CrtLayer } from "@/components/CrtLayer";
 import { DebugOverlay } from "@/components/DebugOverlay";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { TopHud } from "@/components/TopHud";
 import { getDisplay, useSettings } from "@/lib/settings";
 import * as savesLib from "@/lib/saves";
 import {
@@ -44,6 +46,8 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   const [sceneReady, setSceneReady] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [fps, setFps] = useState(0);
+  /** rolling FPS samples for the HUD pill's background graph */
+  const fpsHistoryRef = useRef<number[]>([]);
   const [showPortBy, setShowPortBy] = useState(true);
   const game = useSettings((s) => s.game);
   const debug = useSettings((s) => s.debug);
@@ -120,10 +124,21 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
     if (booted) applyVolumes(iframeRef.current, game.volumes);
   }, [booted, game.volumes]);
 
+  // sample the engine's FPS meter; keeps a short history for the HUD graph
   useEffect(() => {
-    if (!game.showFps) return;
-    setFps(readFps(iframeRef.current));
-    const t = window.setInterval(() => setFps(readFps(iframeRef.current)), 500);
+    if (!game.showFps) {
+      fpsHistoryRef.current = [];
+      return;
+    }
+    const sample = () => {
+      const v = readFps(iframeRef.current);
+      setFps(v);
+      const h = fpsHistoryRef.current;
+      h.push(v);
+      if (h.length > 40) h.shift();
+    };
+    sample();
+    const t = window.setInterval(sample, 500);
     return () => window.clearInterval(t);
   }, [game.showFps]);
 
@@ -247,11 +262,12 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
       />
       <DebugOverlay iframeRef={iframeRef} />
 
-      {game.showFps && (
-        <div className="absolute top-2 left-2 z-30 px-2 py-1 rounded-md bg-black/70 border border-white/10 text-xs font-mono text-white tabular-nums pointer-events-none">
-          {fps} FPS
-        </div>
-      )}
+      <TopHud
+        fpsOn={game.showFps}
+        fps={fps}
+        history={fpsHistoryRef.current}
+        onOpenSettings={() => setPanelOpen((v) => !v)}
+      />
 
       <AnimatePresence>
         {showPortBy && (
@@ -275,39 +291,13 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
         )}
       </AnimatePresence>
 
-      <div className="absolute top-2 right-2 z-40 flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Settings"
-          title="Settings"
-          onClick={(e) => {
-            e.stopPropagation();
-            setPanelOpen((v) => !v);
-          }}
-          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-white hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Exit game"
-          title="Exit"
-          onClick={(e) => {
-            e.stopPropagation();
-            void exitGame();
-          }}
-          className="w-11 h-11 rounded-full bg-black/60 backdrop-blur border border-white/15 hover:border-white/60 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
-      </div>
-
       <AnimatePresence>
         {panelOpen && (
           <SettingsPanel
             iframeRef={iframeRef}
             open
             onClose={() => setPanelOpen(false)}
+            onLeaveGame={() => void exitGame()}
             onExitGame={() => void exitAndClear()}
           />
         )}
