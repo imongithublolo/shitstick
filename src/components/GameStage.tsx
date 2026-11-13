@@ -39,6 +39,13 @@ type Props = {
   onExitClearCache: () => void;
 };
 
+/** localStorage key remembering the right-click hide state of the HUD pill */
+const HUD_HIDDEN_KEY = "ssa-hud-hidden";
+
+/** reveal zone: a right-click this close to the top-right corner shows the pill again */
+const CORNER_W = 200;
+const CORNER_H = 140;
+
 export function GameStage({ onExit, onExitClearCache }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [booted, setBooted] = useState(false);
@@ -49,6 +56,17 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
   /** rolling FPS samples for the HUD pill's background graph */
   const fpsHistoryRef = useRef<number[]>([]);
   const [showPortBy, setShowPortBy] = useState(true);
+  // HUD pill: right-click hides it, right-click in the top-right corner
+  // (while hidden) brings it back; the state survives relaunches
+  const [hudHidden, setHudHidden] = useState(() => {
+    try {
+      return localStorage.getItem(HUD_HIDDEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const hudHiddenRef = useRef(hudHidden);
+  hudHiddenRef.current = hudHidden;
   const game = useSettings((s) => s.game);
   const debug = useSettings((s) => s.debug);
   const savesCfg = useSettings((s) => s.saves);
@@ -83,7 +101,52 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
     return applyDisplay(iframeRef.current, spec);
   }, []);
 
+  /**
+   * Shared right-click logic for the parent page and the game iframe:
+   * visible → hide; hidden → show again only from the top-right corner.
+   * Returns whether the browser context menu should be suppressed.
+   */
+  const handleHudContext = useCallback((x: number, y: number): boolean => {
+    const inCorner = x >= window.innerWidth - CORNER_W && y <= CORNER_H;
+    if (hudHiddenRef.current) {
+      if (!inCorner) return false; // ordinary right-click: browser menu
+      hudHiddenRef.current = false;
+      setHudHidden(false);
+      try {
+        localStorage.setItem(HUD_HIDDEN_KEY, "0");
+      } catch {
+        /* ignore */
+      }
+      return true;
+    }
+    hudHiddenRef.current = true;
+    setHudHidden(true);
+    try {
+      localStorage.setItem(HUD_HIDDEN_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }, []);
+  const hudCtxRef = useRef(handleHudContext);
+
   const handleLoad = useCallback(() => {
+    // right-click inside the game iframe must behave like the parent page:
+    // hide the HUD pill / reveal it from the top-right corner (the game
+    // itself only cancels the menu on its own elements, so we go first)
+    const gdoc = iframeRef.current?.contentDocument;
+    if (gdoc && !(gdoc as any).__ssaHudCtx) {
+      (gdoc as any).__ssaHudCtx = true;
+      gdoc.addEventListener(
+        "contextmenu",
+        (ev) => {
+          const me = ev as MouseEvent;
+          if (hudCtxRef.current(me.clientX || 0, me.clientY || 0)) ev.preventDefault();
+        },
+        true
+      );
+    }
+
     whenEngineReady(iframeRef.current, () => {
       installFpsMeter(iframeRef.current);
       installAudioUnlock(iframeRef.current);
@@ -244,6 +307,9 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
       onClick={() => {
         if (!panelOpen) iframeRef.current?.contentWindow?.focus();
       }}
+      onContextMenu={(e) => {
+        if (hudCtxRef.current(e.clientX, e.clientY)) e.preventDefault();
+      }}
     >
       <iframe
         ref={iframeRef}
@@ -266,6 +332,7 @@ export function GameStage({ onExit, onExitClearCache }: Props) {
         fpsOn={game.showFps}
         fps={fps}
         history={fpsHistoryRef.current}
+        hidden={hudHidden}
         onOpenSettings={() => setPanelOpen((v) => !v)}
       />
 

@@ -22,7 +22,7 @@ Port by b29s.
 | `src/components/InviteGate.tsx` | Invite-only first screen: "Invite Code:" above a capsule text field (Enter submits; the unlock is remembered in localStorage) |
 | `src/components/DownloadScreen.tsx` | Comic Sans, black & white, minimal: edge-to-edge header banner on top, the icon left of the title / black DOWNLOAD button / size. While downloading the banner fades out and the icon becomes a DVD screensaver that bounces around the screen |
 | `src/components/GameStage.tsx` | Full-screen same-origin game iframe + overlays + "(Made by tmx_2011)" / "(port by b29s)" splash on every launch. The only on-screen control is the HUD pill; leaving the game happens from inside the settings |
-| `src/components/TopHud.tsx` | Thin liquid-glass see-through pill pinned to the top-center of gameplay: a sliders icon (opens settings) and, while Show FPS is on, a live FPS readout with a rolling FPS graph painted behind it on the glass |
+| `src/components/TopHud.tsx` | Transparent liquid-glass pill over gameplay: sliders icon (opens settings) + live FPS readout with the rolling FPS graph painted edge-to-edge behind it (no visible graph edges). Anchored top-right, draggable anywhere (position clamped to the viewport and remembered), right-click hides it / right-click in the top-right corner reveals it |
 | `src/components/CrtLayer.tsx` | WebGL2 port of the [gingerbeardman/webgl-crt-shader](https://github.com/gingerbeardman/webgl-crt-shader) (MIT, © 2025 Matt Sephton) sampling the game canvas every frame |
 | `src/components/SettingsPanel.tsx` | See-through black & white panel: CRT, GAME (FPS, FPS lock, keybinds, volumes), SAVES (autosave, slots, backups, clean saves), DEBUG options & cheats (incl. game resolution & auto-fit) + a persistent "Leave game" footer (no floating exit button) |
 | `src/components/DebugOverlay.tsx` | Event hitboxes, collision grid, player info HUD |
@@ -65,14 +65,20 @@ Nothing else in the game was modified.
   offline; game saves live in the browser's storage (RMMZ web mode).
 - **Launch splash**: "(Made by tmx_2011)" above "(port by b29s)" in Comic Sans appears over the game on
   every launch, then fades away.
-- **HUD pill** (in gameplay): a single 30px-tall liquid-glass capsule at the
-  top-center — see-through with a blur, styled after classic FPS overlays.
-  A sliders icon on the left opens the settings panel; while **Show FPS** is
-  on, a live FPS readout (like "59 FPS") appears next to it with a rolling
-  FPS graph painted into the pill's glass behind the text. There is no
-  right-hand button, and the floating gear/exit buttons are gone — leaving
-  the game is a "Leave game" button pinned to the bottom of the settings
-  panel (autosaves first if autosave is on).
+- **HUD pill** (in gameplay): a single 30px-tall liquid-glass capsule anchored at
+  the top-right — mostly transparent glass (a faint white tint, a blur, a
+  hairline border) so the game shows through it, styled after classic FPS
+  overlays. The layout is symmetric: even padding both sides, the sliders
+  icon (opens the settings panel) and the FPS readout as one centered group;
+  while **Show FPS** is on, a live readout (like "59 FPS") appears next to the
+  icon with the rolling FPS graph painted edge-to-edge behind everything on
+  the glass, so the graph's own edges are never visible. There is no
+  right-hand button. The pill is **draggable** anywhere — the position is
+  clamped to the viewport and remembered — and **right-click hides it**
+  (anywhere over the game, also inside the iframe); **right-click in the
+  top-right corner brings it back**. Both the position and the hidden state
+  survive relaunches. Leaving the game is a "Leave game" button pinned to the
+  bottom of the settings panel (autosaves first if autosave is on).
 - **Saves category** (settings panel): autosave (on by default, every 1-10
   minutes, plus one final save when you exit the game — only on the map, never
   mid-battle or mid-dialog), all 20 engine save slots + the portal Auto slot

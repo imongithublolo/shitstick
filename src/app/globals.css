@@ -243,27 +243,27 @@
   animation: ssa-shake 0.45s ease-in-out;
 }
 
-/* slim liquid-glass HUD pill (top of the gameplay view): see-through glass
- * with a blur, a bright top bevel and a soft drop shadow */
+/* slim liquid-glass HUD pill (over the gameplay view): mostly transparent
+ * glass — a faint white tint, a blur, a hairline border and a soft shadow,
+ * so the game shows through it */
 .hud-pill {
   background: linear-gradient(
     105deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.05) 42%,
-    rgba(255, 255, 255, 0.11) 100%
+    rgba(255, 255, 255, 0.09) 0%,
+    rgba(255, 255, 255, 0.02) 45%,
+    rgba(255, 255, 255, 0.06) 100%
   );
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    0 2px 10px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 /* the sliders icon inside the pill: white on glass, brightens on hover so
  * the glyph always stays readable */
 .hud-ico-btn:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.25);
 }
 
